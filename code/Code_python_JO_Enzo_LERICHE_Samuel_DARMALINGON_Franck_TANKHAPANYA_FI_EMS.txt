@@ -1,0 +1,733 @@
+###############################################################################
+#
+# Projet python JO 
+# Enzo LERICHE, Samuel DARMALINGON, Franck TANKHAPANYA
+# BUT SD 2ème année FI EMS
+#
+###############################################################################
+
+
+## Importation des données 
+
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+df = pd.read_csv("C:/Users/User/OneDrive/Documents/BUT/2eme annee/python/projet/2eme/athlete_events.csv")
+
+
+## Description de la base de données
+
+ 
+#Informations générales sur le jeu de données
+df.info()
+
+#Nom des colonnes
+df.columns.tolist()
+
+#Nombre de valeurs manquantes par colonne
+df.isnull().sum()
+
+#Statistiques descriptives
+df.describe()
+ 
+
+
+# Analyses descriptives
+
+## Histogrammes pour les variables numériques
+
+ 
+numeric_columns = df.select_dtypes(include='number').columns
+plt.figure(figsize=(9, 6))
+for col in numeric_columns:
+    plt.subplot(2, 3, numeric_columns.get_loc(col) + 1)
+    plt.hist(df[col].dropna(), bins=20, color='skyblue', edgecolor='black')
+    plt.title(col, fontsize=9)
+    #plt.xlabel(col, fontsize=9)
+    plt.ylabel('Frequency', fontsize=9)
+plt.tight_layout()
+plt.show()
+ 
+
+
+## Graphiques en barre pour les variables catégorielles 
+
+ 
+categorical_columns = df.select_dtypes(include='object').columns
+for col in categorical_columns:
+    if df[col].nunique() <= 10:  #Afficher uniquement les variables avec 10 catégories ou moins (préciser dans le rapport pourquoi)
+        plt.figure(figsize=(9, 5))
+        sns.countplot(data=df, x=col, palette='viridis')
+        plt.title(f'Graphique en barre pour la variable {col}')
+        plt.xlabel(col)
+        plt.ylabel('Count')
+        plt.xticks(rotation=45)
+        plt.tight_layout()    
+        plt.show()
+ 
+
+
+
+## Comparaison entre été et hiver pour le nombre de pays et de sportifs
+
+# On va séparer le jeux de donnée en 2 pour pouvoir avoir un jeux pour les jeux d'été et un jeux pour les jeux d'hiver.
+
+ 
+df_ete = df[df['Season'] == 'Summer']
+
+df_hiver = df[df['Season'] == 'Winter']
+ 
+
+
+### Nombre de pays
+
+# Global
+
+ 
+num_pays = df['NOC'].nunique()
+print(f"Nombre de pays : {num_pays}")
+ 
+
+#Nombre de pays dinstinct en été#
+
+ 
+num_pays_ete = df_ete['NOC'].nunique()
+print(f"Nombre de pays qui participent aux JO d'été' : {num_pays_ete}")
+ 
+
+
+#Nombre de pays dinstinct distinct en hiver#
+
+ 
+num_pays_hiver = df_hiver['NOC'].nunique()
+print(f"Nombre de paysparticipent aux JO d'hiver : {num_pays_hiver}")
+ 
+
+
+#Graphique pour le nombre de pays participant aux JO d'été et d'hiver#
+
+ 
+plt.figure(figsize=(10, 6))
+plt.bar(['Été', 'Hiver'], [num_pays_ete, num_pays_hiver], color=['orange', 'blue'])
+plt.title("Nombre de pays participant aux JO d'été et d'hiver")
+plt.xlabel("Saison des JO")
+plt.ylabel("Nombre de pays")
+plt.show()
+ 
+
+### Nombre de sportifs distincts par pays 
+
+#Nombre de sportif total#
+
+ 
+sportifs_total = df['Name'].nunique()
+print("\nNombre total de sportifs distincts :")
+print(sportifs_total)
+
+ 
+
+#Nombre de sportif en été#
+
+ 
+sportifs_total_ete = df_ete['Name'].nunique()
+print("\nNombre total de sportifs distincts participent aux JO d'été :")
+print(sportifs_total_ete)
+ 
+
+#Nombre de sportif en hiver#
+
+ 
+sportifs_total_hiver = df_hiver['Name'].nunique()
+print("\nNombre total de sportifs distincts participent aux JO d'hiver :")
+print(sportifs_total_hiver)
+ 
+
+
+#Graphique pour le nombre de sportifs participants aux JO d'été et d'hiver#
+
+ 
+plt.figure(figsize=(10, 6))
+plt.bar(['Été', 'Hiver'], [sportifs_total_ete, sportifs_total_hiver], color=['orange', 'blue'])
+plt.title("Nombre total de sportifs participant aux JO d'été et d'hiver")
+plt.xlabel("Saison des JO")
+plt.ylabel("Nombre de sportifs")
+plt.show()
+ 
+
+
+#Nombre de sportifs par pays#
+
+ 
+sportifs_par_pays = df.groupby('NOC')['Name'].nunique() #on peut utiliser la variable "name" ou "ID", vu que "ID" correspond a un code unique donnée a un sportif
+print("Nombre de sportifs distincts par pays :")
+print(sportifs_par_pays)
+
+ 
+
+
+#Nombre de sportifs distincts par pays en été#
+
+ 
+sportifs_par_pays_ete = df_ete.groupby('NOC')['Name'].nunique() #on peut utiliser la variable "name" ou "ID", vu que "ID" correspond a un code unique donnée a un sportif
+print("Nombre de sportifs distincts par pays participent aux JO d'été :")
+print(sportifs_par_pays_ete)
+ 
+
+
+#Nombre de sportifs distincts par pays en hiver #
+
+ 
+
+sportifs_par_pays_hiver = df_hiver.groupby('NOC')['Name'].nunique() #on peut utiliser la variable "name" ou "ID", vu que "ID" correspond a un code unique donnée a un sportif
+print("Nombre de sportifs distincts par pays participent aux JO d'hiver :")
+print(sportifs_par_pays_hiver)
+ 
+
+
+# Analyse comparative
+
+
+## Analyse de la distribution bivariées chez les sportifs
+
+
+### Poids/Genre
+
+ 
+plt.figure(figsize=(12, 8))
+sns.histplot(data=df, x='Weight', hue='Sex', multiple='stack', bins=30, kde=True)
+plt.title("Distribution du poids des athlètes par genre")
+plt.xlabel("Poids (kg)")
+plt.ylabel("Nombre d'athlètes")
+plt.show()
+ 
+
+
+### Taille/Genre
+
+ 
+plt.figure(figsize=(12, 8))
+sns.histplot(data=df, x='Height', hue='Sex', multiple='stack', bins=30, kde=True)
+plt.title("Distribution de la taille des athlètes par genre")
+plt.xlabel("Taille (cm)")
+plt.ylabel("Nombre d'athlètes")
+plt.show()
+ 
+
+
+### Poids/Taille/Genre
+
+ 
+correlation_by_sex = df.groupby('Sex')[['Height', 'Weight']].corr()
+
+print("Corrélation entre la taille et le poids par sexe :")
+print(correlation_by_sex)
+ 
+
+ 
+plt.figure(figsize=(12, 8))
+sns.scatterplot(data=df, x='Height', y='Weight', hue='Sex', palette={'M': 'blue', 'F': 'red'})
+plt.title("Relation entre le poids et la taille des athlètes par genre")
+plt.xlabel("Taille (cm)")
+plt.ylabel("Poids (kg)")
+plt.show()
+ 
+
+
+### Poids/Genre selon la saison
+
+ 
+#moyenne du poids des femmes pour les JO d'été et d'hiver
+poids_moyen_femme_ete = df_ete[df_ete['Sex'] == 'F']['Weight'].mean()
+poids_moyen_femme_hiver = df_hiver[df_hiver['Sex'] == 'F']['Weight'].mean()
+
+print(f"Moyenne du poids des femmes aux JO d'été : {poids_moyen_femme_ete:.2f} kg")
+print(f"Moyenne du poids des femmes aux JO d'hiver : {poids_moyen_femme_hiver:.2f} kg")
+
+#moyenne du poids des hommes pour les JO d'été et d'hiver
+poids_moyen_homme_ete = df_ete[df_ete['Sex'] == 'M']['Weight'].mean()
+poids_moyen_homme_hiver = df_hiver[df_hiver['Sex'] == 'M']['Weight'].mean()
+
+print(f"Moyenne du poids des hommes aux JO d'été : {poids_moyen_homme_ete:.2f} kg")
+print(f"Moyenne du poids des hommes aux JO d'hiver : {poids_moyen_homme_hiver:.2f} kg")
+
+#poids maximum des hommes pour les JO d'été et d'hiver
+poids_max_homme_ete = df_ete[df_ete['Sex'] == 'M']['Weight'].max()
+poids_max_homme_hiver = df_hiver[df_hiver['Sex'] == 'M']['Weight'].max()
+
+print(f"Poids maximum des hommes aux JO d'été : {poids_max_homme_ete} kg")
+print(f"Poids maximum des hommes aux JO d'hiver : {poids_max_homme_hiver} kg")
+ 
+
+ 
+plt.figure(figsize=(9, 4))
+# Distribution du poids pour les Jeux d'été
+plt.subplot(1, 2, 1)
+sns.histplot(data=df_ete, x='Weight', hue='Sex', multiple='stack', bins=30, kde=True, palette={'M': 'blue', 'F': 'red'})
+plt.title("Distribution du poids des athlètes\n (Jeux d'été)")
+plt.xlabel("Poids (kg)")
+plt.ylabel("Nombre d'athlètes")
+
+# Distribution du poids pour les Jeux d'hiver
+plt.subplot(1, 2, 2)
+sns.histplot(data=df_hiver, x='Weight', hue='Sex', multiple='stack', bins=30, kde=True, palette={'M': 'blue', 'F': 'red'})
+plt.title("Distribution du poids des athlètes\n (Jeux d'hiver)")
+plt.xlabel("Poids (kg)")
+plt.ylabel("Nombre d'athlètes")
+plt.subplots_adjust(wspace=20)
+plt.tight_layout()
+plt.show()
+ 
+
+
+### Taille/Genre selon la saison
+
+ 
+# Moyenne de la taille des femmes pour les JO d'été et d'hiver
+taille_moyenne_femme_ete = df_ete[df_ete['Sex'] == 'F']['Height'].mean()
+taille_moyenne_femme_hiver = df_hiver[df_hiver['Sex'] == 'F']['Height'].mean()
+
+print(f"Moyenne de la taille des femmes aux JO d'été : {taille_moyenne_femme_ete:.2f} cm")
+print(f"Moyenne de la taille des femmes aux JO d'hiver : {taille_moyenne_femme_hiver:.2f} cm")
+
+# Moyenne de la taille des hommes pour les JO d'été et d'hiver
+taille_moyenne_homme_ete = df_ete[df_ete['Sex'] == 'M']['Height'].mean()
+taille_moyenne_homme_hiver = df_hiver[df_hiver['Sex'] == 'M']['Height'].mean()
+
+print(f"Moyenne de la taille des hommes aux JO d'été : {taille_moyenne_homme_ete:.2f} cm")
+print(f"Moyenne de la taille des hommes aux JO d'hiver : {taille_moyenne_homme_hiver:.2f} cm")
+
+# Taille maximum des hommes pour les JO d'été et d'hiver
+taille_max_homme_ete = df_ete[df_ete['Sex'] == 'M']['Height'].max()
+taille_max_homme_hiver = df_hiver[df_hiver['Sex'] == 'M']['Height'].max()
+
+print(f"Taille maximum des hommes aux JO d'été : {taille_max_homme_ete} cm")
+print(f"Taille maximum des hommes aux JO d'hiver : {taille_max_homme_hiver} cm")
+
+ 
+
+ 
+plt.figure(figsize=(8, 4))
+# Distribution de la taille pour les Jeux d'été
+plt.subplot(1, 2, 1)
+sns.histplot(data=df_ete, x='Height', hue='Sex', multiple='stack', bins=30, kde=True, palette={'M': 'blue', 'F': 'red'})
+plt.title("Distribution de la taille des athlètes\n (Jeux d'été)")
+plt.xlabel("Taille (cm)")
+plt.ylabel("Nombre d'athlètes")
+
+# Distribution de la taille pour les Jeux d'hiver
+plt.subplot(1, 2, 2)
+sns.histplot(data=df_hiver, x='Height', hue='Sex', multiple='stack', bins=30, kde=True, palette={'M': 'blue', 'F': 'red'})
+plt.title("Distribution de la taille des athlètes\n (Jeux d'hiver)")
+plt.xlabel("Taille (cm)")
+plt.ylabel("Nombre d'athlètes")
+plt.subplots_adjust(wspace=20)
+plt.tight_layout()
+plt.show()
+ 
+
+
+### Poids/Taille/Genre selon la saison
+
+ 
+#corrélation entre la taille et le poids par saison et par sexe
+correlation_by_season_sex = df.groupby(['Season', 'Sex'])[['Height', 'Weight']].corr()
+
+print("Corrélation entre la taille et le poids par saison et par sexe :")
+print(correlation_by_season_sex)
+
+ 
+
+ 
+plt.figure(figsize=(8, 4))
+
+# Relation entre le poids et la taille pour les Jeux d'été
+plt.subplot(1, 2, 1)
+sns.scatterplot(data=df_ete, x='Height', y='Weight', hue='Sex', palette={'M': 'blue', 'F': 'red'})
+plt.title("Relation entre le poids et la taille \n(Jeux d'été)")
+plt.xlabel("Taille (cm)")
+plt.ylabel("Poids (kg)")
+
+# Relation entre le poids et la taille pour les Jeux d'hiver
+plt.subplot(1, 2, 2)
+sns.scatterplot(data=df_hiver, x='Height', y='Weight', hue='Sex', palette={'M': 'blue', 'F': 'red'})
+plt.title("Relation entre le poids et la taille \n(Jeux d'hiver)")
+plt.xlabel("Taille (cm)")
+plt.ylabel("Poids (kg)")
+plt.subplots_adjust(wspace=20)
+plt.tight_layout()
+plt.show()
+ 
+
+
+## Médailles remportées au total
+
+### Global
+
+ 
+medailles_totales = df['Medal'].count()
+print(f"Nombre total de médailles remportées : {medailles_totales}")
+
+#TOP 10 des pays qui ont remportés le plus de médailles 
+df_medailles = df[df['Medal'].notnull()]
+top_10_pays = df_medailles['NOC'].value_counts().head(10)
+print(f"TOP 10 des pays qui ont remporté le plus de médailles : {top_10_pays}")
+
+#graphique
+plt.figure(figsize=(10, 6))
+top_10_pays.plot(kind='bar', color='skyblue')
+plt.title("TOP 10 des pays qui ont remporté le plus de médailles")
+plt.xlabel("Pays (NOC)")
+plt.ylabel("Nombre de médailles")
+plt.show()
+ 
+
+
+### Comparaison entre Eté et Hiver
+
+
+ 
+
+#Eté
+
+nb_medailles_or_ete = df_ete[df_ete['Medal'] == 'Gold'].shape[0]
+#Nombre total de médailles remportées
+medailles_totales_ete = df_ete['Medal'].count()
+print(f"Nombre total de médailles remportées : {medailles_totales}")
+
+#TOP 10 des pays qui ont remportés le plus de médailles 
+df_medailles_ete = df_ete[df_ete['Medal'].notnull()]
+top_10_pays_ete = df_medailles_ete['NOC'].value_counts().head(10)
+print(f"TOP 10 des pays qui ont remporté le plus de médailles : {top_10_pays}")
+
+
+
+##Hiver
+
+#Nombre total de médailles remportées
+medailles_totales_hiver = df_hiver['Medal'].count()
+print(f"Nombre total de médailles remportées : {medailles_totales}")
+
+#TOP 10 des pays qui ont remportés le plus de médailles 
+df_medailles_hiver = df_hiver[df_hiver['Medal'].notnull()]
+top_10_pays_hiver = df_medailles_hiver['NOC'].value_counts().head(10)
+print(f"TOP 10 des pays qui ont remporté le plus de médailles : {top_10_pays}")
+
+plt.figure(figsize=(18, 6))
+
+# Graphique pour l'été
+plt.subplot(1, 2, 1)
+top_10_pays_ete.plot(kind='bar', color='skyblue')
+plt.title("TOP 10 des pays qui ont remporté \nle plus de médailles aux JO d'été")
+plt.xlabel("Pays (NOC)")
+plt.ylabel("Nombre de médailles")
+
+# Graphique pour l'hiver
+plt.subplot(1, 2, 2)
+top_10_pays_hiver.plot(kind='bar', color='skyblue')
+plt.title("TOP 10 des pays qui ont remporté \nle plus de médailles aux JO d'Hiver")
+plt.xlabel("Pays (NOC)")
+plt.ylabel("Nombre de médailles")
+plt.subplots_adjust(wspace=0.55)
+# Afficher la figure
+plt.show()
+
+ 
+
+
+## Top 10 des pays les plus médaillés
+
+
+### Global
+
+ 
+df_medailles = df[df['Medal'].notnull()]
+top_10_pays = df_medailles['NOC'].value_counts().head(10).index
+df_top_10_pays = df_medailles[df_medailles['NOC'].isin(top_10_pays)]
+
+# Convertir les catégories 'Medal' en valeurs numériques
+df_top_10_pays['Medal'] = pd.Categorical(df_top_10_pays['Medal'], categories=['Gold', 'Silver', 'Bronze'], ordered=True)
+df_top_10_pays['MedalNumeric'] = df_top_10_pays['Medal'].cat.codes
+
+# Créer un tableau croisé des médailles
+df_pivot = df_top_10_pays.groupby(['NOC', 'MedalNumeric']).size().unstack(fill_value=0)
+
+# Trier par le total de médailles
+df_pivot['Total'] = df_pivot.sum(axis=1)
+df_pivot = df_pivot.sort_values(by='Total', ascending=False).drop(columns='Total')
+
+# Définir la palette de couleurs
+palette_couleurs = {'Gold': '#FFD700', 'Silver': '#C0C0C0', 'Bronze': '#CD7F32'}
+
+# Créer le graphique en barre empilée
+plt.figure(figsize=(12, 8))
+df_pivot.plot(kind='bar', stacked=True, color=palette_couleurs.values())
+plt.title("Nombre de médailles d'or, d'argent et de bronze pour \nles 10 pays les plus médaillés")
+plt.ylabel("Nombre de médailles")
+plt.xlabel('')
+plt.legend(title='Type de médaille', labels=palette_couleurs.keys())
+plt.xticks(rotation=30, ha='right') 
+
+# Afficher le graphique
+plt.show()
+ 
+
+
+### Comparaison entre Eté et Hiver
+
+ 
+# Été
+top_10_pays_ete = df_medailles_ete['NOC'].value_counts().head(10).index
+df_top_10_pays_ete = df_medailles_ete[df_medailles_ete['NOC'].isin(top_10_pays_ete)]
+
+df_top_10_pays_ete['Medal'] = pd.Categorical(df_top_10_pays_ete['Medal'], categories=['Gold', 'Silver', 'Bronze'], ordered=True)
+df_top_10_pays_ete['MedalNumeric'] = df_top_10_pays_ete['Medal'].cat.codes
+
+df_pivot_ete = df_top_10_pays_ete.groupby(['NOC', 'MedalNumeric']).size().unstack(fill_value=0)
+df_pivot_ete['Total'] = df_pivot_ete.sum(axis=1)
+df_pivot_ete = df_pivot_ete.sort_values(by='Total', ascending=False).drop(columns='Total')
+
+# Hiver
+top_10_pays_hiver = df_medailles_hiver['NOC'].value_counts().head(10).index
+df_top_10_pays_hiver = df_medailles_hiver[df_medailles_hiver['NOC'].isin(top_10_pays_hiver)]
+
+df_top_10_pays_hiver['Medal'] = pd.Categorical(df_top_10_pays_hiver['Medal'], categories=['Gold', 'Silver', 'Bronze'], ordered=True)
+df_top_10_pays_hiver['MedalNumeric'] = df_top_10_pays_hiver['Medal'].cat.codes
+
+df_pivot_hiver = df_top_10_pays_hiver.groupby(['NOC', 'MedalNumeric']).size().unstack(fill_value=0)
+df_pivot_hiver['Total'] = df_pivot_hiver.sum(axis=1)
+df_pivot_hiver = df_pivot_hiver.sort_values(by='Total', ascending=False).drop(columns='Total')
+
+# Palette de couleurs
+palette_couleurs = {'Gold': '#FFD700', 'Silver': '#C0C0C0', 'Bronze': '#CD7F32'}
+
+# Créer une figure avec deux sous-graphiques côte à côte
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 4))
+
+# Graphique en barre empilée pour l'été
+df_pivot_ete.plot(kind='bar', stacked=True, color=palette_couleurs.values(), ax=ax1)
+ax1.set_title("Nombre de médailles d'or, d'argent et de bronze \ndes 10 pays les plus médaillés \naux JO d'été", fontsize=9)
+ax1.set_ylabel("Nombre de médailles")
+ax1.legend(title='Type de médaille', labels=palette_couleurs.keys())
+ax1.tick_params(axis='x', rotation=45)
+ax1.tick_params(axis='x', which='major', pad=15, labelsize=8)
+
+# Graphique en barre empilée pour l'hiver
+df_pivot_hiver.plot(kind='bar', stacked=True, color=palette_couleurs.values(), ax=ax2)
+ax2.set_title("Nombre de médailles d'or, d'argent et de bronze \ndes 10 pays les plus médaillés \naux JO d'hiver", fontsize=9)
+ax2.set_ylabel("Nombre de médailles")
+ax2.legend(title='Type de médaille', labels=palette_couleurs.keys())
+ax2.tick_params(axis='x', rotation=30)
+ax2.tick_params(axis='x', which='major', pad=15, labelsize=8)
+
+# Ajuster l'espace entre les deux sous-graphiques
+plt.subplots_adjust(wspace=0.4)
+
+# Afficher la figure
+plt.show()
+ 
+
+
+## TOP 5 des sports les plus médaillés
+
+
+### Global
+
+ 
+df_medailles = df[df['Medal'].notnull()]
+palette_couleurs = {'Gold': '#FFD700', 'Silver': '#C0C0C0', 'Bronze': '#CD7F32'}
+
+# TOP 5 des sports les plus médaillés (graphique en barre)
+top_5_sports = df_medailles['Sport'].value_counts().head(5).index
+df_top_5_sports = df_medailles[df_medailles['Sport'].isin(top_5_sports)]
+sport_order = df_top_5_sports['Sport'].value_counts().index
+
+plt.figure(figsize=(3, 2))
+df_pivot = df_top_5_sports.groupby(['Sport', 'Medal']).size().unstack(fill_value=0)
+df_pivot = df_pivot.loc[df_pivot.sum(axis=1).sort_values(ascending=False).index]
+
+df_pivot.plot(kind='bar', stacked=True, color=palette_couleurs.values())
+plt.title("Nombre de médailles par type de médaille pour\n les TOP 5 sports")
+plt.xlabel("Sport")
+plt.ylabel("Nombre de médailles")
+plt.legend(title='Type de médaille',fontsize=9, labels=palette_couleurs.keys())
+plt.xticks(rotation=20, ha='right')  # Retirez le paramètre 'labels'
+plt.show()
+ 
+
+
+### Comparaison entre Eté et Hiver
+
+ 
+# Été
+top_5_sports_ete = df_medailles_ete['Sport'].value_counts().head(5).index
+df_top_5_sports_ete = df_medailles_ete[df_medailles_ete['Sport'].isin(top_5_sports_ete)]
+sport_order_ete = df_top_5_sports_ete['Sport'].value_counts().index
+
+# Hiver
+top_5_sports_hiver = df_medailles_hiver['Sport'].value_counts().head(5).index
+df_top_5_sports_hiver = df_medailles_hiver[df_medailles_hiver['Sport'].isin(top_5_sports_hiver)]
+sport_order_hiver = df_top_5_sports_hiver['Sport'].value_counts().index
+
+palette_couleurs = {'Gold': '#FFD700', 'Silver': '#C0C0C0', 'Bronze': '#CD7F32'}
+
+# Créer une figure avec deux sous-graphiques côte à côte
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(17, 5))
+
+# Graphique été
+df_pivot_ete = df_top_5_sports_ete.groupby(['Sport', 'Medal']).size().unstack(fill_value=0)
+df_pivot_ete = df_pivot_ete.reindex(sport_order_ete)
+df_pivot_ete.plot(kind='bar', stacked=True, color=palette_couleurs.values(), ax=ax1)
+ax1.set_title("Nombre de médailles par type pour les TOP 5 sports\naux JO d'été", fontsize=9)
+ax1.set_xlabel("Sport", fontsize=10)  # Augmenter la taille du label de l'axe des x
+ax1.set_ylabel("Nombre de médailles", fontsize=8)
+ax1.legend(title='Type de médaille', labels=palette_couleurs.keys(), fontsize=8)
+ax1.tick_params(axis='x', rotation=15)
+ax1.tick_params(axis='x', which='major', pad=15, labelsize=6)
+ax1.tick_params(axis='both', labelsize=8)  # Ajuster la taille de la graduation
+
+# Graphique hiver
+df_pivot_hiver = df_top_5_sports_hiver.groupby(['Sport', 'Medal']).size().unstack(fill_value=0)
+df_pivot_hiver = df_pivot_hiver.reindex(sport_order_hiver)
+df_pivot_hiver.plot(kind='bar', stacked=True, color=palette_couleurs.values(), ax=ax2)
+ax2.set_title("Nombre de médailles par type pour les TOP 5 sports\naux JO d'hiver", fontsize=9)
+ax2.set_xlabel("Sport", fontsize=10)  # Augmenter la taille du label de l'axe des x
+ax2.set_ylabel("Nombre de médailles", fontsize=8)
+ax2.legend(title='Type de médaille', labels=palette_couleurs.keys(), fontsize=8)
+ax2.tick_params(axis='x', rotation=15)
+ax2.tick_params(axis='x', which='major', pad=15, labelsize=6)
+ax2.tick_params(axis='both', labelsize=8)  # Ajuster la taille de la graduation
+
+# Ajuster l'espace entre les deux sous-graphiques
+fig.subplots_adjust(wspace=0.55)
+
+# Afficher la figure
+plt.show()
+
+ 
+
+
+## Pays les plus médaillés dans le top 5 sports
+
+
+
+### Eté
+
+ 
+sports_medaillés_ete = ['Athletics', 'Swimming', 'Rowing', 'Gymnastics', 'Fencing']
+
+plt.figure(figsize=(15, 10))
+plt.suptitle("TOP 5 des sports aux JO d'été", fontsize=16)
+for i, sport in enumerate(sports_medaillés_ete, 1):
+    plt.subplot(2, 3, i)
+    df_sport = df_medailles[df_medailles['Sport'] == sport]
+    df_top_10_pays = df_sport[df_sport['NOC'].isin(top_10_pays.tolist())]  # Convert to list
+    palette_couleurs = {'Gold': '#FFD700', 'Silver': '#C0C0C0', 'Bronze': '#CD7F32'}
+    df_pivot = df_top_10_pays.groupby(['NOC', 'Medal']).size().unstack(fill_value=0)
+    df_pivot = df_pivot.loc[df_pivot.sum(axis=1).sort_values(ascending=False).index]
+    df_pivot.plot(kind='bar', stacked=True, color=palette_couleurs.values(), ax=plt.gca())
+    plt.title(f"{sport}")
+    plt.xlabel("Pays (NOC)")
+    plt.ylabel("Nombre de médailles")
+    plt.legend(title='Type de médaille', labels=palette_couleurs.keys())
+    plt.xticks(rotation=45, ha='right')
+
+plt.tight_layout()
+plt.show()
+ 
+
+
+### Hiver
+
+ 
+sports_medaillés_hiver = ['Ice Hockey', 'Cross Country Skiing', 'Speed Skating', 'Alpine Skiing', 'Biathlon']
+
+plt.figure(figsize=(15, 10))
+plt.suptitle("TOP 5 des sports aux JO d'hiver", fontsize=16)
+for i, sport in enumerate(sports_medaillés_hiver, 1):
+    plt.subplot(2, 3, i)
+    df_sport = df_medailles[df_medailles['Sport'] == sport]
+    df_top_10_pays = df_sport[df_sport['NOC'].isin(top_10_pays.tolist())]  # Convert to list
+    palette_couleurs = {'Gold': '#FFD700', 'Silver': '#C0C0C0', 'Bronze': '#CD7F32'}
+    df_pivot = df_top_10_pays.groupby(['NOC', 'Medal']).size().unstack(fill_value=0)
+    df_pivot = df_pivot.loc[df_pivot.sum(axis=1).sort_values(ascending=False).index]
+    df_pivot.plot(kind='bar', stacked=True, color=palette_couleurs.values(), ax=plt.gca())
+    plt.title(f"{sport}")
+    plt.xlabel("Pays (NOC)")
+    plt.ylabel("Nombre de médailles")
+    plt.legend(title='Type de médaille', labels=palette_couleurs.keys())
+    plt.xticks(rotation=45, ha='right')
+
+plt.tight_layout()
+plt.show()
+
+ 
+
+
+## Pays des sportifs les plus médaillés
+
+
+### Global
+
+ 
+df_sportifs_pays = df_medailles.groupby(['Name', 'NOC'])['Medal'].count().reset_index(name='TotalMedals')
+meilleurs_sportifs = df_sportifs_pays.sort_values(by='TotalMedals', ascending=False).head(100)
+top_pays = meilleurs_sportifs['NOC'].value_counts()
+
+plt.figure(figsize=(9, 7))
+sns.barplot(x=top_pays.index, y=top_pays.values, palette='viridis')
+plt.title("Nombre de meilleurs sportifs par pays parmi les 100 meilleurs")
+plt.xlabel('')
+plt.ylabel("Nombre de sportifs")
+plt.xticks(rotation=40)
+plt.show()
+
+ 
+
+
+### Comparaison entre Eté et Hiver
+
+ 
+#Eté
+df_sportifs_pays_ete = df_medailles_ete.groupby(['Name', 'NOC'])['Medal'].count().reset_index(name='TotalMedals')
+
+meilleurs_sportifs_ete = df_sportifs_pays_ete.sort_values(by='TotalMedals', ascending=False).head(100)
+
+top_pays_ete = meilleurs_sportifs_ete['NOC'].value_counts()
+
+#Hiver
+
+df_sportifs_pays_hiver = df_medailles_hiver.groupby(['Name', 'NOC'])['Medal'].count().reset_index(name='TotalMedals')
+
+meilleurs_sportifs_hiver = df_sportifs_pays_hiver.sort_values(by='TotalMedals', ascending=False).head(100)
+
+top_pays_hiver = meilleurs_sportifs_hiver['NOC'].value_counts()
+
+# Créer une figure avec deux sous-graphiques côte à côte
+plt.figure(figsize=(30, 8))
+
+# Graphique pour les JO d'été
+plt.subplot(1, 2, 1)
+sns.barplot(x=top_pays_ete.index, y=top_pays_ete.values, palette='viridis')
+plt.title("Nombre de meilleurs sportifs par pays \nparmi les 100 meilleurs aux JO d'été")
+plt.xlabel("Pays")
+plt.ylabel("Nombre de sportifs")
+plt.xticks(rotation=40)
+
+# Graphique pour les JO d'hiver
+plt.subplot(1, 2, 2)
+sns.barplot(x=top_pays_hiver.index, y=top_pays_hiver.values, palette='viridis')
+plt.title("Nombre de meilleurs sportifs par pays \nparmi les 100 meilleurs aux JO d'hiver")
+plt.xlabel("Pays")
+plt.ylabel("Nombre de sportifs")
+plt.xticks(rotation=40)
+plt.tick_params(axis='x', which='major', pad=15, labelsize=8)
+# Ajuster l'espace entre les deux sous-graphiques
+plt.subplots_adjust(wspace=0.4)
+
+# Afficher la figure
+plt.show()
+
+ 
+
+

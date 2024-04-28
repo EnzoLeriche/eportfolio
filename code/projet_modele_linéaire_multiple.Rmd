@@ -1,0 +1,364 @@
+---
+title: "Modèle linéaire multiple"
+output:
+  word_document: default
+  html_document:
+    df_print: paged
+  pdf_document: null
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(MASS)
+library(ggplot2)
+library(readxl)
+library(corrplot)
+library(leaps)
+```
+
+\begin{center}
+
+\textbf{Rapport écrit par:}
+
+\textbf{Enzo LERICHE, Samuel DARMALINGON, Zakaria GHORAB}
+
+\textbf{BUT Science des données FI EMS}
+
+\textbf{2024-03-28}
+
+\includegraphics[width=0.7\textwidth,keepaspectratio=true]{C:/Users/User/OneDrive/Images/UniversiteParis_IUTParis-RdS.png} 
+\maketitle
+
+\end{center}
+
+\newpage
+\tableofcontents
+\newpage
+
+# Introduction
+
+## Présentation du projet
+
+***Consigne sur sujet : ****L’objectif de ce projet est d’appliquer les connaissances acquises pendant le cours de modèle linéaire à utiliser sur R. Notre problématique est : *
+
+**\underline{Quelles sont les variables qui peuvent expliquer le nombre de dégâts infligés aux joueurs ?}**
+
+## Présentation de Fortnite
+
+Fortnite, un jeu vidéo développé par Epic Games, a pris d'assaut la scène du gaming depuis son lancement en 2017. Avec son mode Battle Royale très populaire, le jeu rassemble 100 joueurs sur une île où la mission est de rester le dernier survivant. 
+
+Les différents modes de jeu, tels que Solo (individuel), Duo (en équipe de deux), Trio (en équipe de trois) et Squad (en équipe de quatre), offrent une expérience sociale et stratégique. Jouer avec des amis pour atteindre la victoire ajoute une dynamique amusante au jeu. 
+
+
+## Présentation du jeu de données
+
+Notre jeu de données est composé de variables récoltées dans le jeu vidéo Fortnite. Plus précisement, il s'agit d'une personne qui a récolté ses données sur une période de 87 parties. 
+Notre base de données contient 16 variables que nous pourrons vous présenter juste après. 
+
+\newpage
+
+# Réponse à l'exercice 
+
+## Importation des données
+
+```{r}
+setwd("C:/Users/User/OneDrive/Documents/BUT/2eme annee/modèle linéaire")
+data <- read_excel("fortnite_statistics.xlsx")
+head(data, 3)
+```
+
+## Étude descriptive univariée
+
+```{r}
+noms_variables <- c("Eliminations", "Assists", "Accuracy", "Hits", "Head Shots", "Damage Taken", "Damage to Players")
+
+par(mfrow=c(1,2))
+for (i in noms_variables){
+  hist(unlist(data[,i]),main=paste("Histogramme de la variable\n", i),
+       xlab=i, ylab="Fréquence")
+  boxplot(unlist(data[,i]),main=paste("Boxplot de la variable\n", i),
+          xlab=i, ylab="")
+}
+
+```
+
+## Matrice de corrélation
+
+```{r}
+fortnite <- data[,noms_variables]
+plot(fortnite)
+cor(fortnite)
+corrplot(cor(fortnite), method="color", type="upper")
+```
+
+La matrice des corrélations met en évidence plusieurs relations entre les différentes variables de notre ensemble de données Fortnite. En se concentrant sur la variable "Damage to Players", on observe qu'elle présente la corrélation la plus élevée avec "Eliminations" (0.853). Cela suggère qu'il existe une forte association entre les dégâts infligés aux joueurs et le nombre d'éliminations réalisées.
+
+
+En regardant plus globalement la matrice des corrélations, on constate que les autres variables ne présentent pas de corrélations aussi fortes entre elles. Par exemple, les corrélations entre "Assists" et les autres variables sont relativement faibles, avec des coefficients allant de -0.17 à 0.24.
+
+## Construction du modèle linéaire multiple
+
+```{r}
+mod <- lm(formula= `Damage to Players` ~., data=fortnite)
+par(mfrow=c(2,2))
+plot(mod)
+
+summary(mod)
+```
+Les hypothèses du modèle linéaire sont validées.
+
+Dans la sortie R, nous avons les estimations de nos paramètres du modèle:
+
+- b = 85.2123
+
+- Eliminations = 125.7025
+
+- Assists = 39.8324
+
+- Accuracy = 112.0133
+
+- Hits = 2.4010
+
+- Head Shots = 16.9561
+
+- Damage Taken = -0.2455
+
+Nous allons maintenant tester un à un si ces paramètres d’éspérance sont nuls ou non en prenant en compte la présence des autres variables :
+
+- b : pvaleur = 0.064354, on ne rejette pas H0, on n'a pas mis en évidence que b est différent de 0 au risque 5%.
+
+- Eliminations : pvaleur < 2e-16, on rejette H0, on a mis en évidence que le paramètre "Eliminations" était différent de 0 au risque 5%.
+
+- Assists : pvaleur = 0.000425, on rejette H0, on a mis en évidence que le paramètre "Assists" était différent de 0 au risque 5%.
+
+- Head Shots : pvaleur = 1.7e-06, on rejette H0, on a mis en évidence que le paramètre "Head Shots" était différent de 0 au risque 5%.
+
+Cela veux dire que que lorque le joueur va effectuer des éliminations, asssiter aux éliminations et faire des tirs dans la tête, il va infligé des dommages aux autres joueurs avec un risuqe de de tromper de 5%.
+
+
+- Damage Taken : pvaleur = 0.059187, on ne rejette pas H0, on n'a pas mis en évidence que le paramètre "Damage Taken" est différent de 0 au risque 5%.
+
+- Accuracy : pvaleur = 0.350575, on ne rejette pas H0, on n'a pas mis en évidence que le paramètre "Accuracy" est différent de 0 au risque 5%.
+
+- Hits : pvaleur = 0.050039, on ne rejette pas H0, on n'a pas mis en évidence que le paramètre "Hits" est différent de 0.
+
+Cela veut dire que lorsque le joueur va recevoir des dégâts, qu'il va tirer, et qu'on va mesurer son pourcentage de tir. Cela ne signifie qu'il ne va pas infligé des dommages aux autres joueurs avec un risque de de tromper de 5%.
+
+
+On va maintenant tester au risque 5% la contribution globale des variables explicatives sur le nombre de dégât infligés aux joueurs ce qui correspond au test de Fisher.  Le sortie R nous donne une pvaleur < 2.2e-16, ce qui veut dire que au moins une des variables du modèle sert à expliquer le nombre de dégât infligés aux joueurs.
+
+La sortie R nous montre un $R^{2}$ très grand, égale à 0.8774. Mais on sait que le $R^{2}$ n'est pas un critère très intéressant car il augmente quand le nombre de paramètre augmente. On va donc regarder le $R^{2}$ ajustés qui lui ne prend pas en compte le nombre de paramètre. Ici, le $R^{2}$ ajustés est égal à 0.8682, c'est à dire que 0.8682 soit 86,82% de la variabilité de Y (le nombre de dégât infligés aux joueurs) est expliqué par notre modèle.
+
+Notre modèle est plus intéressant que pas de modèle, mais certaines variables semble moins intéressante à garder. Il faudrait faire une selection de variable pour faire un meilleur modèle.
+
+## Construction du modèle linéaire multiple pour log(y+1)
+
+```{r}
+modlog <- lm(formula= log(`Damage to Players`+1) ~., data=fortnite)
+par(mfrow=c(2,2))
+plot(modlog)
+
+
+summary(modlog)
+```
+
+Les hypothèses du modèle linéaire sont validées.
+
+Dans la sortie R, nous avons les estimations de nos paramètres du modèle:
+
+- b = 5.0526093
+
+- Eliminations = 0.2352832
+
+- Assists = 0.1099187
+
+- Accuracy = 1.0411662
+
+- Hits = 0.0015631
+
+- Head Shots = 0.0263177
+
+- Damage Taken = -0.0003282
+
+Nous allons maintenant tester un à un si ces paramètres d’éspérances sont nuls ou non en prenant en compte la présence des autres variables :
+
+- b : pvaleur < 2e-16, on rejette H0, on a mis en évidence que le paramètre "Eliminations" était différent de 0.
+
+- Eliminations : pvaleur = 7.85e-13, on rejette H0, on a mis en évidence que le paramètre "Eliminations" était différent de 0.
+
+- Assists : pvaleur = 0.000214, on rejette H0, on a mis en évidence que le paramètre "Assists" était différent de 0.
+
+- Accuracy : pvaleur = 0.001292, on rejette H0, on a mis en évidence que le paramètre "Assists" était différent de 0.
+
+- Head Shots : pvaleur = 0.002958, on rejette H0, on a mis en évidence que le paramètre "Head Shots" était différent de 0.
+
+
+Cela veux dire que que lorque le joueur va effectuer des éliminations, asssiter aux éliminations, le pourcentage du nombre de tir du joueur et faire des tirs dans la tête, il va infligé des dommages aux autres joueurs avec un risuqe de de tromper de 5%.
+
+
+- Damage Taken : pvaleur = 0.331097, on ne rejette pas H0, on n'a pas mis en évidence que le paramètre "Damage Taken" est différent de 0.
+
+- Hits : pvaleur = 0.621899, on ne rejette pas H0, on n'a pas mis en évidence que le paramètre "Hits" est différent de 0.
+
+Cela veut dire que lorsque le joueur va recevoir des dégâts,et qu'il va tirer,  il ne va pas infligé des dommages aux autres joueurs avec un risuqe de de tromper de 5%.
+
+
+On va maintenant tester au risque 5% la contribution globale des variables explicatives sur le nombre de dégât infligés aux joueurs ce qui correspond au test de Fisher.  Le sortie R nous donne une pvaleur < 2.2e-16, ce qui veut dire que au moins une des variables du modèle sert à expliquer le nombre de dégât infligés aux joueurs.
+
+La sortie R nous montre un $R^{2}$ très grand, égale à 0.7689. Mais on sait que le $R^{2}$ n'est pas un critère très intéressant car il augmente quand le nombre de paramètre augmente. On va donc regarder le $R^{2}$ ajustés qui lui ne prend pas en compte le nombre de paramètre. Ici, le $R^{2}$ ajustés est égal à 0.7515, c'est à dire que 0.8682 soit 86,82% de la variabilité de Y (le nombre de dégât infligés aux joueurs) est expliqué par notre modèle.
+
+Notre modèle est plus intéressant que pas de modèle, mais certaines variables semble moins intéressante à garder. Il faudrait faire une selection de variable pour faire un meilleur modèle.
+
+Pour comparer les deux modèles, le plus interessant semble le premier modèle (mod). En effet, il a un meilleur $R^{2}$ et $R^{2}$ ajustés que le modèle 2 (modlog).
+Par contre les conclusions semblent pas vraiment si différentes entre les 2 modèles. Dans les 2 modèles la conclusion finale était que au moins une des variables sert à expliquer le nombre de dégât infligés aux joueurs et que notre modèle était plus intéressant que pas de modèle.
+
+## Selection de variable
+
+### Nombre de modèle possible à comparer
+
+Pour savoir le nombre de modèle à tester il faut calculé $2^{p}$ ou p représente le nombre de variables. 
+
+Ici on a p = 6.
+
+Donc : 
+
+\begin{center}
+$nb_{modele} = 2^{6} = 64$
+\end{center}
+
+
+### Avec leaps 
+
+Nous allons maintenant utiliser leaps pour pouvoir représenter les meilleurs modèles en fonction des différents critères vu en cours.
+
+Nous allons utiliser les 3 critères suivants : 
+
+- $R^{2}$
+
+-$R^{2}$ ajusté
+
+- BIC
+
+```{r}
+a <- regsubsets(`Damage to Players`~., data = fortnite, method = "exhaustive", nbest = 5)
+
+par(mfrow=c(1,1))
+plot(a, scale = "r2")
+plot(a, scale = "adjr2") 
+plot(a, scale = "bic") 
+```
+
+Avec le $R^{2}$, le modèle qui est considéré comme le meilleur contient toutes les variables, c'est-à-dire:
+Eliminations, Assists, Accuracy, Hits, Head Shots, Damage Taken.
+
+Avec le $R^{2}$ ajusté le modèle qui est considéré comme le meilleur contient les variables suivantes : 
+Eliminations, Assists, Hits, Head Shots, Damage Taken.
+
+Avec le BIC le modèle qui est considéré comme le meilleur contient les variables suivantes : 
+Eliminations, Assists, Hits, Head Shots.
+
+On passe donc d'un modèle qui garde 6 variables avec le $R^{2}$ à un modèle qui garde 4 variables avec le BIC.
+
+### Selection ascendante (Forward)
+
+*Avec AIC* :
+
+```{r}
+m1 <- lm(`Damage to Players`~1, data = fortnite)
+step(m1,scope=list(upper=~Eliminations+Assists+Accuracy+Hits+`Head Shots`+`Damage Taken`),
+     direction="forward", trace=FALSE, k = 2)
+```
+En faisant la selection ascendante nous trouvons le  meilleur modèle qui contient les variables suivantes: Eliminations, Head Shots, Assists, Hits, Damage Taken.
+
+
+*Avec BIC* :
+```{r}
+n <- nrow(data)
+step(m1,scope=list(upper=~Eliminations+Assists+Accuracy+Hits+`Head Shots`+`Damage Taken`),
+     direction="forward", trace=F, k = log(n))
+```
+En faisant la selection ascendante nous trouvons le  meilleur modèle qui contient les variables suivantes: Eliminations, Head Shots, Assists, Hits.
+
+### Selection descendante (Backward)
+
+*Avec AIC* :
+```{r}
+step(mod,direction="backward", trace=F, k = 2)
+```
+En faisant la selection descendante nous trouvons le  meilleur modèle qui contient les variables suivantes: Eliminations, Head Shots, Assists, Hits, Damage Taken.
+
+
+*Avec BIC* :
+```{r}
+step(mod,direction="backward", trace=F, k = log(n))
+```
+En faisant la selection descendante nous trouvons le  meilleur modèle qui contient les variables suivantes: Eliminations, Head Shots, Assists, Hits.
+
+
+### Methode Stepwise
+
+*Avec AIC* :
+```{r}
+step(m1, scope=list(upper=~Eliminations+Assists+Accuracy+Hits+`Head Shots`+`Damage Taken`),
+     direction="both", trace=F, k = 2)
+```
+En faisant la selection étape par étape avec stepwise nous trouvons le  meilleur modèle qui contient les variables suivantes: Eliminations, Head Shots, Assists, Hits, Damage Taken.
+
+
+*Avec BIC* :
+```{r}
+step(m1, scope=list(upper=~Eliminations+Assists+Accuracy+Hits+`Head Shots`+`Damage Taken`),
+     direction="both", trace=F, k = log(n))
+```
+En faisant la selection étape par étape avec stepwise nous trouvons le  meilleur modèle qui contient les variables suivantes: Eliminations, Head Shots, Assists, Hits.
+
+
+## Verification des hyphothèses pour les modèles choisis
+
+### Modèle complet
+
+```{r}
+mod <- lm(formula= `Damage to Players` ~., data=fortnite)
+par(mfrow=c(2,2))
+plot(mod)
+```
+Les hyptohèses sont vérifiées pour le modèle complet.
+
+### Modèle AIC 
+
+```{r}
+mod_retenu_aic <- lm(`Damage to Players`~Eliminations+`Head Shots`+Assists+Hits+`Damage Taken`, data = fortnite)
+par(mfrow=c(2,2))
+plot(mod_retenu_aic)
+```
+Les hyptohèses sont vérifiées pour le modèle AIC.
+
+
+### Modèle BIC
+
+```{r}
+mod_retenu_bic<- lm(`Damage to Players`~Eliminations+`Head Shots`+Assists+Hits, data = fortnite)
+par(mfrow=c(2,2))
+plot(mod_retenu_bic)
+```
+Les hyptohèses sont vérifiées pour le modèle BIC.
+
+## Représentation des predictions 
+
+```{r}
+par(mfrow=c(1,1))
+predict_modele_complet <- predict(mod, fortnite,interval="prediction", level=0.95)[,1]
+predict_modele_aic <- predict(mod_retenu_aic,fortnite,interval="prediction", level=0.95)[,1]
+predict_modele_bic <- predict(mod_retenu_bic,fortnite,interval="prediction", level=0.95)[,1]
+
+legend_labels <- c("Modèle complet", "Modèle AIC", "Modèle BIC")
+
+plot(predict_modele_complet, fortnite$`Damage to Players`, col="pink", pch=16, 
+     xlab="Prédictions", ylab="Dommages aux joueurs", 
+     main="Représentation des prédictions")
+points(predict_modele_aic, fortnite$`Damage to Players`, col="blue", pch=16)
+points(predict_modele_bic, fortnite$`Damage to Players`, col="chocolate", pch=16)
+legend("topright", legend=legend_labels, col=c("pink", "blue", "chocolate"), pch=16, cex=0.8)
+```
+
+De manière générale que ce soit pour le modèle AIC ou BIC, les points de prédiction semble très proches des données réelles.

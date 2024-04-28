@@ -1,0 +1,1829 @@
+---
+title: "Domaine d'appli"
+author: "Samuel DARMALINGON - Enzo LERICHE"
+date: "2024-04-05"
+output:
+  pdf_document: default
+  html_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(tidyverse)
+library(leaps)
+library(forcats)
+library(gridExtra)
+```
+
+# Introduction
+
+Le projet vise à explorer la relation entre l'âge et la performance, tant sur le plan physique que cognitif, à travers une analyse approfondie de données réelles complétées par des recherches scientifiques. Cette étude est cruciale pour comprendre comment le vieillissement affecte les performances humaines dans divers domaines. Les données fournies couvrent plusieurs épreuves d'athlétisme pour hommes et femmes, ainsi que les performances de joueurs d'échecs, offrant un terrain riche pour examiner l'impact de l'âge sur la performance.
+
+Les données d'athlétisme comprennent des informations détaillées sur les athlètes, leurs performances dans différentes disciplines, leurs âges au moment des compétitions, et plus encore. Ces données permettent de construire un modèle précis de la relation âge-performance en filtrant les performances aberrantes ou manquantes et en discrétisant l'âge des athlètes de manière appropriée, que ce soit par année entière ou par trimestre.
+
+Le projet ajoute une dimension intéressante avec l'inclusion des données sur les joueurs d'échecs. Bien que les échecs soient une discipline cognitive plutôt que physique, l'analyse de la performance en fonction de l'âge dans ce domaine peut offrir des insights précieux sur l'effet du vieillissement sur des compétences telles que la prise de décision rapide, la stratégie, et la mémoire.
+
+Pour mener à bien cette analyse, le projet propose d'ajuster trois modèles différents aux données : un modèle linéaire, un modèle polynomial et l'équation de Moore. Chaque modèle vise à capturer la nature de la relation entre l'âge et la performance, avec l'équation de Moore nécessitant une approche de régression non linéaire. Les modèles seront évalués à l'aide de plusieurs métriques, notamment la somme des résidus carrés (RSS), le coefficient de détermination ajusté (\(R^2\) ajusté), l'AIC corrigé et le BIC, pour déterminer lequel fournit le meilleur ajustement aux données.
+
+Ce travail académique ne se contente pas de traiter les données et d'ajuster des modèles, mais il invite également à une réflexion critique sur les résultats obtenus, notamment en déterminant l'âge auquel la performance atteint son apogée pour différentes épreuves. Ce pic de performance est analysé à travers les différents modèles pour voir si un âge optimal universel pour la performance existe, quelles que soient les disciplines.
+
+Enfin, le projet encourage l'exploration de nouvelles équations et la comparaison de leurs performances avec celles des modèles déjà établis, ainsi qu'une réflexion sur l'utilisation d'outils comme ChatGPT dans le processus de recherche et d'analyse.
+
+Ce projet constitue donc une opportunité enrichissante d'appliquer des compétences en statistiques, en programmation R, et en analyse critique pour explorer une question fondamentale : comment l'âge influence-t-il la performance humaine, et peut-on identifier des tendances universelles à travers différentes disciplines ?
+
+# Question 1
+
+## Importation des données
+
+```{r}
+setwd("C:/Users/User/OneDrive/Documents/BUT/2eme annee/domaine dapplication/Projet semestre 4  relation âge-performance-20240126")
+
+resultats_femmes <- read.csv("resultats_femmes.csv", sep=";", encoding="latin1")
+
+resultats_hommes <- read.csv("resultats_hommes.csv", sep=";", encoding="latin1")
+
+resultats_joueurs_echecs <- read.csv2("resultats_joueurs_echecs.txt", sep = ";")
+
+```
+
+Nous avons analysé les résultats sportifs pour les femmes et les hommes, ainsi que les performances de joueurs d'échecs. Et donc avant de faire des analyses statistiques sur ce données, nous avons d'abord effectuer une gestion des bases de données.
+
+## Gestion des bases de données 
+
+Nous avons commencé par faire un nettoyage de ces bases 
+
+```{r}
+dim(resultats_femmes)
+dim(resultats_hommes)
+dim(resultats_joueurs_echecs)
+```
+
+La base de données des résultats sportifs des femmes comportent 122 319 observations et 12 variables.
+
+La base de données des résultats sportifs des hommes comportent 132 569 observations et 12 variables.
+
+La base de données des résultats des joueurs d'échecs comportent 139 119 observations et 12 variables.
+
+Puis, nous avons observé si ces bases comportaient des valeurs manquuantes.
+
+```{r}
+sum(is.na(resultats_femmes))
+sum(is.na(resultats_hommes))
+sum(is.na(resultats_joueurs_echecs))
+```
+
+Et donc nous avons constaté:
+                            - chez les femmes, il y avaient 122 347 manquantes.
+                            
+                            - chez les hommes, il y avaient 132 621 manquantes.
+                            
+                            - chez les joueurs d'échecs, il y avaient 11 910 manquantes.
+
+
+Puis nous avons constaté qu'il y avait une variable qui comportait que des valeurs manquantes, *Var.7* dnas les résultats sportifs des hommes et des femmes. Donc, nous avons décidé de la supprimer cette variable. Donc nous nous retrouvons avec 11 variables chez les résultats sportifs des hommes et des femmes. 
+
+```{r}
+resultats_femmes <- subset(resultats_femmes, select = -Var.7)
+resultats_hommes <- subset(resultats_hommes, select = -Var.7)
+```
+
+Puis, parès avoir examiner la variables *dis*, nous avons remarqué que ches les résultats sportifs des hommes et des femmes, cette variable comportait la discipline athlétique et sa catégorie dans une même variable. Donc nous avons décidé de séparer ces deux caractéristiques et placer chacune dans une variable soit la variable 
+
+- *Sport*
+
+- *Discipline*
+
+```{r}
+# FEMMES
+resultats_femmes <- resultats_femmes %>% separate(dis, c('Sport', 'Discipline'), sep = "/")
+
+#HOMMES
+resultats_hommes <- resultats_hommes %>% separate(dis, c('Sport', 'Discipline'), sep = "/")
+```
+
+Par la suite dans ces même base de données, nous avons crée une nouvelle variable, pour identifier, la *distance* que les sportifs parcourent dans chaque *Discipline*. Et puis, à ces même disciplines nous les avons attribué un identifiant.
+
+```{r}
+#FEMMES
+resultats_femmes <- resultats_femmes %>%
+                    mutate(distance = ifelse(Discipline == "marathon", 42195,
+                                      ifelse(Discipline == "half-marathon", 21097.5,
+                                      ifelse(Discipline == "10-kilometres", 10000,
+                                      ifelse(Discipline == "10000-metres", 10000,
+                                      ifelse(Discipline == "5000-metres", 5000,
+                                      ifelse(Discipline == "3000-metres", 3000,
+                                      ifelse(Discipline == "1500-metres", 1500,
+                                      ifelse(Discipline == "800-metres", 800,3000)))))))))
+
+
+resultats_femmes <- resultats_femmes %>%
+  mutate(Id_epreuve = ifelse(Discipline == "marathon", 10,
+                           ifelse(Discipline == "half-marathon", 11,
+                                  ifelse(Discipline == "10-kilometres", 12,
+                                         ifelse(Discipline == "10000-metres", 13,
+                                                ifelse(Discipline == "5000-metres", 14,
+                                                       ifelse(Discipline == "3000-metres", 15,
+                                                              ifelse(Discipline == "1500-metres", 16,
+                                                                     ifelse(Discipline == "800-metres", 17,18)))))))))
+
+
+#HOMMES
+resultats_hommes <- resultats_hommes %>%
+  mutate(distance = ifelse(Discipline == "marathon", 42195,
+                           ifelse(Discipline == "half-marathon", 21097.5,
+                                  ifelse(Discipline == "10-kilometres", 10000,
+                                         ifelse(Discipline == "10000-metres", 10000,
+                                                ifelse(Discipline == "5000-metres", 5000,
+                                                       ifelse(Discipline == "3000-metres", 3000,
+                                                              ifelse(Discipline == "1500-metres", 1500,
+                                                                     ifelse(Discipline == "800-metres", 800,3000)))))))))
+
+
+resultats_hommes <- resultats_hommes %>%
+  mutate(Id_epreuve = ifelse(Discipline == "marathon", 10,
+                             ifelse(Discipline == "half-marathon", 11,
+                                    ifelse(Discipline == "10-kilometres", 12,
+                                           ifelse(Discipline == "10000-metres", 13,
+                                                  ifelse(Discipline == "5000-metres", 14,
+                                                         ifelse(Discipline == "3000-metres", 15,
+                                                                ifelse(Discipline == "1500-metres", 16,
+                                                                       ifelse(Discipline == "800-metres", 17,18)))))))))
+
+```
+
+Dans la poursuite de notre analyse, dans les bases des résultats sportifs des hommes et des femmes, nous nous intérressé à la variable *Mark* qui exprime la durée que les sportifs ont effectué durant le parcours dans chaque discipline.
+
+Ainsi, nous avons remarqué que certaines observations, il y avaient un "h" à la fin de la durée du parcours. Donc, nous avons remplacé ces "h" par des 0 par manipuler par la suite ces données.
+
+```{r}
+#FEMMES
+resultats_femmes$Mark <- gsub("h",0, resultats_femmes$Mark)
+
+#HOMMES
+resultats_hommes$Mark <- gsub("h",0, resultats_hommes$Mark)
+```
+
+Par conséquent, nous avons manipulé ces données pour qu'elles soient bien représenté. En effet nous avons fait:
+
+- D'abord, yne conversion de ces données, si elles étaient de la forme "##:##", de rajouter "00:" devant pour mettre de la forme "h:min:s"
+
+- Une conversion des données, si elles étaient de la forme "min:sec.1/100s", de les convertir en secondes
+
+- Et puis, pour ensuite placer ces données dans une nouvelle variable nommé *temps_en_secondes*.
+
+```{r}
+#FEMMES#
+for (i in 1:nrow(resultats_femmes)) {
+  mark <- resultats_femmes$Mark[i]
+  if (grepl("^\\d{2}:\\d{2}$", mark)) {
+    # Si la variable est composée de ##:##, ajouter :00 et copier
+    resultats_femmes$Mark[i] <- paste0("00:",mark)
+  }
+}
+
+
+
+#HOMMES#
+for (i in 1:nrow(resultats_hommes)) {
+  mark <- resultats_hommes$Mark[i]
+  if (grepl("^\\d{2}:\\d{2}$", mark)) {
+    # Si la variable est composée de ##:##, ajouter :00 et copier
+    resultats_hommes$Mark[i] <- paste0("00:",mark)
+  }
+}
+
+
+
+
+convertir_temps <- function(temps) {
+  if(grepl("\\.", temps)) { # Si le temps est en min:sec.1/100s
+    temps_split <- strsplit(temps, "\\.")
+    minutes <- as.numeric(substring(temps_split[[1]][1], 1, nchar(temps_split[[1]][1])-3))
+    secondes <- as.numeric(substring(temps_split[[1]][1], nchar(temps_split[[1]][1])-1, nchar(temps_split[[1]][1])))
+    centiemes <- as.numeric(temps_split[[1]][2])
+    temps_en_secondes <- minutes * 60 + secondes + centiemes / 100
+  } else { # Si le temps est en h:min:sec
+    temps_split <- strsplit(temps, ":")
+    heures <- as.numeric(temps_split[[1]][1])
+    minutes <- as.numeric(temps_split[[1]][2])
+    secondes <- as.numeric(temps_split[[1]][3])
+    temps_en_secondes <- heures * 3600 + minutes * 60 + secondes
+  } 
+}
+
+
+# Appliquer la fonction a la colonne "marque" de votre dataframe
+
+#FEMMES#
+resultats_femmes$temps_en_secondes <- sapply(resultats_femmes$Mark, convertir_temps)
+
+resultats_femmes$vitesse <- resultats_femmes$distance/resultats_femmes$temps_en_secondes
+
+
+
+sum(is.na(resultats_femmes$temps_en_secondes))
+
+#HOMMES#
+resultats_hommes$temps_en_secondes <- sapply(resultats_hommes$Mark, convertir_temps)
+
+resultats_hommes$vitesse <- resultats_hommes$distance/resultats_hommes$temps_en_secondes
+
+
+```
+
+Ensuite, nous nous sommes focalisé sur la date de naissance des athlètes et la date à laquelle ils ont passé les disciplines, en changeant le format des dates pour ensuite calculer l'âge à laquelle ils ont passé les épreuves
+
+```{r}
+
+#FEMMES#
+resultats_femmes$DOB=gsub("JAN",01,resultats_femmes$DOB)
+resultats_femmes$DOB=gsub("FEB",02,resultats_femmes$DOB)
+resultats_femmes$DOB=gsub("MAR",03,resultats_femmes$DOB)
+resultats_femmes$DOB=gsub("APR",04,resultats_femmes$DOB)
+resultats_femmes$DOB=gsub("MAY",05,resultats_femmes$DOB)
+resultats_femmes$DOB=gsub("JUN",06,resultats_femmes$DOB)
+resultats_femmes$DOB=gsub("JUL",07,resultats_femmes$DOB)
+resultats_femmes$DOB=gsub("AUG",08,resultats_femmes$DOB)
+resultats_femmes$DOB=gsub("SEP",09,resultats_femmes$DOB)
+resultats_femmes$DOB=gsub("OCT",10,resultats_femmes$DOB)
+resultats_femmes$DOB=gsub("NOV",11,resultats_femmes$DOB)
+resultats_femmes$DOB=gsub("DEC",12,resultats_femmes$DOB)
+resultats_femmes$DOB=gsub(" ","/",resultats_femmes$DOB)
+resultats_femmes$DOB=as.Date(resultats_femmes$DOB,"%d/%m/%Y")
+
+resultats_femmes$Date=gsub("JAN",01,resultats_femmes$Date)
+resultats_femmes$Date=gsub("FEB",02,resultats_femmes$Date)
+resultats_femmes$Date=gsub("MAR",03,resultats_femmes$Date)
+resultats_femmes$Date=gsub("APR",04,resultats_femmes$Date)
+resultats_femmes$Date=gsub("MAY",05,resultats_femmes$Date)
+resultats_femmes$Date=gsub("JUN",06,resultats_femmes$Date)
+resultats_femmes$Date=gsub("JUL",07,resultats_femmes$Date)
+resultats_femmes$Date=gsub("AUG",08,resultats_femmes$Date)
+resultats_femmes$Date=gsub("SEP",09,resultats_femmes$Date)
+resultats_femmes$Date=gsub("OCT",10,resultats_femmes$Date)
+resultats_femmes$Date=gsub("NOV",11,resultats_femmes$Date)
+resultats_femmes$Date=gsub("DEC",12,resultats_femmes$Date)
+resultats_femmes$Date=gsub(" ","/",resultats_femmes$Date)
+resultats_femmes$Date=as.Date(resultats_femmes$Date,"%d/%m/%Y")
+
+# calcul de l'age le jour de la performance
+resultats_femmes$age_compet=as.numeric(round((resultats_femmes$Date-resultats_femmes$DOB)/365,2))
+resultats_femmes$age_entier=as.numeric(round(resultats_femmes$age_compet,0)) #calcul de l'age entier
+
+
+#HOMMES#
+resultats_hommes$DOB=gsub("JAN",01,resultats_hommes$DOB)
+resultats_hommes$DOB=gsub("FEB",02,resultats_hommes$DOB)
+resultats_hommes$DOB=gsub("MAR",03,resultats_hommes$DOB)
+resultats_hommes$DOB=gsub("APR",04,resultats_hommes$DOB)
+resultats_hommes$DOB=gsub("MAY",05,resultats_hommes$DOB)
+resultats_hommes$DOB=gsub("JUN",06,resultats_hommes$DOB)
+resultats_hommes$DOB=gsub("JUL",07,resultats_hommes$DOB)
+resultats_hommes$DOB=gsub("AUG",08,resultats_hommes$DOB)
+resultats_hommes$DOB=gsub("SEP",09,resultats_hommes$DOB)
+resultats_hommes$DOB=gsub("OCT",10,resultats_hommes$DOB)
+resultats_hommes$DOB=gsub("NOV",11,resultats_hommes$DOB)
+resultats_hommes$DOB=gsub("DEC",12,resultats_hommes$DOB)
+resultats_hommes$DOB=gsub(" ","/",resultats_hommes$DOB)
+resultats_hommes$DOB=as.Date(resultats_hommes$DOB,"%d/%m/%Y")
+
+resultats_hommes$Date=gsub("JAN",01,resultats_hommes$Date)
+resultats_hommes$Date=gsub("FEB",02,resultats_hommes$Date)
+resultats_hommes$Date=gsub("MAR",03,resultats_hommes$Date)
+resultats_hommes$Date=gsub("APR",04,resultats_hommes$Date)
+resultats_hommes$Date=gsub("MAY",05,resultats_hommes$Date)
+resultats_hommes$Date=gsub("JUN",06,resultats_hommes$Date)
+resultats_hommes$Date=gsub("JUL",07,resultats_hommes$Date)
+resultats_hommes$Date=gsub("AUG",08,resultats_hommes$Date)
+resultats_hommes$Date=gsub("SEP",09,resultats_hommes$Date)
+resultats_hommes$Date=gsub("OCT",10,resultats_hommes$Date)
+resultats_hommes$Date=gsub("NOV",11,resultats_hommes$Date)
+resultats_hommes$Date=gsub("DEC",12,resultats_hommes$Date)
+resultats_hommes$Date=gsub(" ","/",resultats_hommes$Date)
+resultats_hommes$Date=as.Date(resultats_hommes$Date,"%d/%m/%Y")
+
+# calcul de l'age le jour de la performance
+resultats_hommes$age_compet=as.numeric(round((resultats_hommes$Date-resultats_hommes$DOB)/365,2))
+resultats_hommes$age_entier=as.numeric(round(resultats_hommes$age_compet,0)) #calcul de l'age entier
+
+
+```
+
+Ensuite, nous avons supprimé les données aberrantes, c'est-à-dire les personnes qui étaient âgés de plus de 100 ans.
+
+```{r}
+#FEMMES
+resultats_femmes <- subset(resultats_femmes, age_entier <=100)
+resultats_femmes <- subset(resultats_femmes, age_compet <=100)
+
+#HOMMES
+resultats_hommes <- subset(resultats_hommes, age_entier <=100)
+resultats_hommes <- subset(resultats_hommes, age_compet <=100)
+```
+
+## Comparaison age et performance
+
+Dans le cadre de notre analyse statistique, nous nous intéressons à explorer la dynamique entre l'âge des athlètes et leur vitesse, deux variables cruciales dans l'évaluation de la performance sportive. L'âge a souvent été un facteur déterminant dans les capacités physiques, et il est couramment admis qu'il existe un pic de performance à un certain stade de la vie d'un athlète, après lequel les capacités tendent à décliner. Cette analyse vise à identifier de telles tendances, en se demandant si les données corroborent l'hypothèse d'une corrélation entre l'âge et la vitesse, et à déterminer à quel âge les athlètes atteignent leur performance optimale. En utilisant des méthodes de visualisation de données et des modèles statistiques, nous allons examiner un large éventail d'âges et de vitesses pour établir cette relation potentielle.
+
+```{r}
+#FEMMES#
+plot(resultats_femmes$age_compet)
+plot(resultats_femmes$vitesse)
+
+
+#HOMMES#
+
+plot(resultats_hommes$age_compet)
+plot(resultats_hommes$vitesse)
+
+
+
+```
+
+Nous avons d'abord observer la tendance de l'age et la vitesse des athlètes sous la forme de nuage de points chez les hommes et les femmes.
+
+```{r}
+#FEMMES
+dest1 <- density(resultats_femmes$age_compet, na.rm=TRUE)
+int1 <- hist(resultats_femmes$age_compet, plot=FALSE)
+
+dest2 <- density(resultats_femmes$vitesse, na.rm=TRUE)
+int2 <- hist(resultats_femmes$vitesse, plot=FALSE)
+
+par(mfrow=c(1,2))
+hist(resultats_femmes$age_compet, xlim=range(int1$breaks,dest1$x), ylim=range(int1$density,
+                                                                dest1$y), xlab="age", ylab="density", freq=FALSE, main="Distribution de l'age \nchez les femmes")
+lines(dest1, lty=2, lwd=2, col="red")
+box()
+
+hist(resultats_femmes$vitesse, xlim=range(int2$breaks,dest2$x), ylim=range(int2$density,
+                                                             dest2$y), xlab="vitesse", ylab="density", freq=FALSE, main="Distribution de la performance \nchez les femmes",)
+lines(dest2, lty=2, lwd=2, col="red")
+box()
+
+
+
+#HOMMES
+dest3 <- density(resultats_hommes$age_compet, na.rm=TRUE)
+int3 <- hist(resultats_hommes$age_compet, plot=FALSE)
+
+dest4 <- density(resultats_hommes$vitesse, na.rm=TRUE)
+int4 <- hist(resultats_hommes$vitesse, plot=FALSE)
+
+par(mfrow=c(1,2))
+hist(resultats_femmes$age_compet, xlim=range(int3$breaks,dest3$x), ylim=range(int3$density,
+                                                                              dest3$y), xlab="age", ylab="density", freq=FALSE, main="Distribution de l'age \nchez les hommes ")
+lines(dest3, lty=2, lwd=2, col="red")
+box()
+
+hist(resultats_hommes$vitesse, xlim=range(int4$breaks,dest4$x), ylim=range(int4$density,
+                                                                           dest4$y), xlab="vitesse", ylab="density", freq=FALSE, main="Distribution de la performance \nchez les hommes",)
+lines(dest4, lty=2, lwd=2, col="red")
+box()
+
+
+```
+
+Notre étude a scruté la distribution de l'âge et de la performance parmi les compétiteurs des deux sexes. 
+
+L'analyse révèle chez les femmes une concentration marquée des âges autour de la vingtaine, point après lequel la fréquence commence à décliner progressivement. Concernant leur performance, nous notons une densité de vitesse avoisinant les 5 m/s, densité qui tend à s'effriter à mesure que la vitesse s'accroît.
+
+
+Chez les hommes, l'analyse révèle une concentration marquée des âges autour de la vingtaine, point après lequel la fréquence commence à décliner progressivement. Concernant leur performance, nous notons une densité de vitesse avoisinant les 5.5 m/s, densité qui tend à s'effriter à mesure que la vitesse s'accroît.
+
+Par conséquent , nous avons pu analysé la performace des athlètes en fonction de leur age chez les hommes et les femmes.
+
+```{r}
+#FEMMES
+# representation de la relation age/perf
+d <- ggplot(resultats_femmes, aes(x=age_entier, y=vitesse)) 
+d + stat_summary(fun.data = "mean_cl_boot", colour = "red") + ylab("Performance") + xlab("Age")+
+  labs(title = "representation de la relation age/perf chez les femmes" )
+
+# calculer de la meuilleure performance par age
+# il existe plusieurs methodes pour le faire
+
+
+```
+
+Ce graphique illustre la relation entre l'âge et la performance sportive chez les femmes. Sur l'axe horizontal (abscisses), nous avons l'âge des athlètes, et sur l'axe vertical (ordonnées), la performance, probablement mesurée en termes de vitesse ou de temps.
+
+Des points rouges représentent la moyenne de la performance pour un âge donné, et les barres verticales rouges indiquent l'intervalle de confiance autour de cette moyenne, montrant la variabilité des performances à cet âge.
+
+Il semblerait qu'il y ait une tendance décroissante de la performance avec l'âge, débutant à la vingtaine avec les performances les plus élevées, puis diminuant progressivement. La densité des points et la longueur des intervalles de confiance semblent diminuer avec l'âge, ce qui pourrait indiquer moins de données ou une plus grande variabilité dans les performances chez les athlètes plus âgés.
+
+
+```{r}
+#HOMMES
+
+# representation de la relation age/perf
+d1 <- ggplot(resultats_hommes, aes(x=age_entier, y=vitesse)) 
+d1 + stat_summary(fun.data = "mean_cl_boot", colour = "red") + ylab("Performance") + xlab("Age")+
+  labs(title = "representation de la relation age/perf chez les hommes" )
+```
+
+Le graphique montre la relation entre l'âge et la performance, probablement mesurée en termes de vitesse, chez les hommes. Sur l'axe horizontal, l'âge est affiché, et sur l'axe vertical, nous avons la performance sportive.
+
+Les points rouges représentent la moyenne des performances à différents âges, et les barres d'erreur indiquent la variabilité ou l'intervalle de confiance autour de ces moyennes. On observe une tendance générale décroissante : les performances commencent relativement élevées chez les plus jeunes, atteignent un plateau pendant la vingtaine et la trentaine, puis semblent diminuer à partir de la quarantaine.
+
+Les barres d'erreur sont particulièrement longues pour les tranches d'âge les plus jeunes et les plus âgées, ce qui pourrait indiquer une plus grande variabilité des performances dans ces groupes ou un nombre moins élevé de données, rendant l'estimation moins précise. Cela suggère que la performance sportive masculine pourrait être optimale durant les années intermédiaires et que l'âge pourrait être un facteur influençant cette performance.
+
+## La meilleure performance des athlètes en fonction de leur age selon la distance parcourue
+
+Notre analyse s'est concentrée sur l'évaluation de la performance maximale des athlètes en fonction de leur âge, et ce pour différentes distances parcourues, chez les deux sexes. Nous avons examiné comment la vitesse maximale varie avec l'âge pour chaque sexe, en prenant en compte des distances variées allant du demi-marathon au marathon complet. Cela nous a permis de déterminer des modèles de performance qui révèlent à quel âge les athlètes sont susceptibles d'atteindre leur pic de vitesse, et comment ce pic varie selon la longueur de la course. Ces informations sont cruciales pour comprendre la longévité des athlètes dans le sport et pour planifier leur entraînement et leur participation à des compétitions en fonction de leur cycle de vie sportive.
+
+### Chez les Femmes
+
+```{r}
+#FEMMES#
+
+meilleures_performances_femmes <- aggregate(vitesse ~ age_entier + distance, data = resultats_femmes, FUN = max)
+meilleures_performances_femmes <- meilleures_performances_femmes %>%
+  mutate(classe = ifelse(distance == "42195", "long",
+                           ifelse(distance == "21097.5", "long",
+                                  ifelse(distance == "10000", "moyen",
+                                         ifelse(distance == "10000", "moyen",
+                                                ifelse(distance == "5000", "moyen",
+                                                       ifelse(distance == "3000", "court",
+                                                              ifelse(distance == "1500", "court",
+                                                                     ifelse(distance == "800", "court","court")))))))))
+
+palette_couleurs <- c("800" = "chocolate", "1500" = "pink", "3000" = "yellow", "5000" = "red", "10000" = "blue", "21097.5" = "purple", "42195" = "green")
+
+ggplot(meilleures_performances_femmes, aes(x = age_entier, y = vitesse, fill = factor(distance), color = factor(distance))) +
+  geom_point(size = 1) +
+  scale_color_manual(values = palette_couleurs) +
+  scale_fill_manual(values = palette_couleurs) +  # Assurez-vous également de spécifier la palette pour fill
+  labs(color = "Distance", fill = "Distance", title = "Performance des athlètes en fonction de leur age \nselon la distance parcourue chez les femmes") +  # Nommer les légendes de couleur et de remplissage
+  theme(legend.position = "right")  # Position de la légende
+
+```
+
+Dans le cadre de notre exploration de la performance sportive, nous examinons comment l'âge influe sur la vitesse des athlètes féminines à travers différentes distances de course. Ce graphique offre une représentation visuelle de cette dynamique, en illustrant les performances des athlètes féminines en fonction de leur âge pour diverses distances, allant du sprint à l'épreuve d'endurance qu'est le marathon.
+
+Chaque point coloré correspond à une moyenne de vitesse pour un groupe d'âge spécifique et une distance donnée. La couleur des points différencie les distances, avec un spectre de couleurs représentant des distances courtes à longues. On peut observer des tendances distinctes pour chaque distance, fournissant un aperçu précieux de la manière dont l'âge et la distance interagissent pour influencer la performance athlétique chez les femmes.
+
+Le graphique montre une dispersion de points de différentes couleurs, chacune correspondant à une distance spécifique, mesurée en mètres, sur laquelle les athlètes féminines ont concouru. Les points semblent suivre des tendances distinctes en fonction de la distance :
+
+- **800 mètres (Couleur Vert Clair)** : Les points pour cette distance sont les plus hauts sur le graphique, suggérant des vitesses plus rapides pour les courses plus courtes. Les performances semblent être les meilleures dans la vingtaine et commencent à diminuer après cela.
+
+- **1500 mètres (Couleur Rouge)** : Ces points se trouvent juste en dessous de ceux des 800 mètres, indiquant des vitesses légèrement plus lentes en accord avec l'augmentation de la distance. Il y a aussi une diminution visible de la performance avec l'âge, mais cela semble commencer plus tardivement que pour les 800 mètres.
+
+- **3000 mètres (Couleur Jaune)** : La tendance pour cette distance montre une autre baisse de la vitesse, avec une performance maximale autour de la trentaine avant une diminution.
+
+- **5000 mètres (Couleur Bleu Foncé)** : Ici, les points montrent que la vitesse diminue davantage, avec des performances de pointe qui semblent se produire plus tardivement, peut-être dans la trentaine.
+
+- **10000 mètres (Couleur Violet)** : Les points pour cette distance semblent montrer une diminution plus graduelle avec l'âge, indiquant que les athlètes peuvent maintenir leur performance sur de plus longues distances jusqu'à un âge avancé.
+
+- **Semi-marathon (21097.5 mètres, Couleur Orange)** : La performance pour cette distance se situe en dessous des autres, indiquant que les vitesses moyennes sont plus basses, comme on peut s'y attendre pour une course d'endurance. Les points sont plus dispersés, suggérant une variabilité plus importante dans les performances à travers les différentes tranches d'âge.
+
+- **Marathon (42195 mètres, Couleur Vert Foncé)** : Ces points représentent les vitesses les plus basses, cohérentes avec la longueur et la difficulté de la distance. La performance semble moins influencée par l'âge, avec des vitesses relativement constantes, mais avec une certaine diminution dans les groupes d'âge les plus élevés.
+
+Globalement, le graphique révèle que la vitesse des athlètes féminines diminue avec l'augmentation de la distance de la course et avec l'âge. Il montre également que la performance sur des distances plus longues, comme le semi-marathon et le marathon, présente une plus grande variation et est maintenue à des niveaux stables sur une plus large gamme d'âges, comparativement aux courses plus courtes.
+
+### Chez les hommes
+
+```{r}
+#HOMMES#
+
+meilleures_performances_hommes <- aggregate(vitesse ~ age_entier + distance, data = resultats_hommes, FUN = max)
+meilleures_performances_hommes <- meilleures_performances_hommes %>%
+  mutate(classe = ifelse(distance == "42195", "long",
+                         ifelse(distance == "21097.5", "long",
+                                ifelse(distance == "10000", "moyen",
+                                       ifelse(distance == "10000", "moyen",
+                                              ifelse(distance == "5000", "moyen",
+                                                     ifelse(distance == "3000", "court",
+                                                            ifelse(distance == "1500", "court",
+                                                                   ifelse(distance == "800", "court","court")))))))))
+
+palette_couleurs <- c("800" = "chocolate", "1500" = "pink", "3000" = "yellow", "5000" = "red", "10000" = "blue", "21097.5" = "purple", "42195" = "green")
+
+ggplot(meilleures_performances_hommes, aes(x = age_entier, y = vitesse, fill = factor(distance), color = factor(distance))) +
+  geom_point(size = 1) +
+  scale_color_manual(values = palette_couleurs) +
+  scale_fill_manual(values = palette_couleurs) +  # Assurez-vous également de spécifier la palette pour fill
+  labs(color = "Distance", fill = "Distance",title = "Performance des athlètes en fonction de leur age \nselon la distance parcourue chez les hommes") +  # Nommer les légendes de couleur et de remplissage
+  theme(legend.position = "right")  # Position de la légende
+
+
+```
+
+Le graphique représente la performance, mesurée par la vitesse, des athlètes masculins en fonction de leur âge pour différentes distances de course. Chaque groupe de points colorés illustre la vitesse moyenne atteinte pour chaque âge et distance, avec les couleurs correspondant à diverses distances parcourues, comme indiqué dans la légende.
+
+Les points rouges, représentant la distance de 800 mètres, semblent montrer que la vitesse la plus élevée est maintenue dans la jeunesse et commence à diminuer après la vingtaine. Les points de couleurs successives indiquent que pour des distances plus longues, de 1500 mètres jusqu'au marathon de 42195 mètres, les vitesses moyennes sont généralement plus basses, conformément aux attentes étant donné l'accroissement de la distance.
+
+On note une tendance à la baisse de la vitesse avec l'âge pour toutes les distances, mais cette tendance semble moins marquée pour les distances plus longues, indiquées par les points verts foncés et violets, ce qui peut suggérer que les athlètes masculins maintiennent une meilleure performance à des vitesses plus constantes sur les longues distances, même en vieillissant.
+
+La variabilité de la performance, illustrée par la dispersion des points, suggère également que l'âge a un impact différent sur la vitesse en fonction de la distance courue, et que les athlètes plus âgés pourraient privilégier les longues distances. Ce graphique fournit ainsi des insights précieux sur la manière dont l'âge affecte la performance sportive masculine sur un spectre de distances allant des sprints aux marathons.
+
+### Comparaison entre les hommes et les femmes
+
+```{r}
+
+
+# Définition des classes de distance
+classe <- c("court", "moyen", "long")
+palette_couleurs <- c("800" = "chocolate", "1500" = "pink", "3000" = "yellow", "5000" = "red", "10000" = "blue", "21097.5" = "purple", "42195" = "green")
+
+
+# Fonction pour créer les graphiques par classe de distance et par genre
+create_graphs_by_class <- function(data, gender, classes, palette) {
+  graphs <- list()
+  for (i in seq_along(classes)) {
+    if (i == 1) {
+      dd <- data[data$distance >= 800 & data$distance <= 3000, ]
+    } else if (i == 2) {
+      dd <- data[data$distance >= 5000 & data$distance <= 10000, ]
+    } else {
+      dd <- data[!(data$distance >= 800 & data$distance <= 3000) &
+                 !(data$distance >= 5000 & data$distance <= 10000), ]
+    }
+  
+    # Création du graphique
+    graph <- ggplot(dd, aes(x = age_entier, y = vitesse, fill = factor(distance), color = factor(distance))) +
+      geom_point(size = 1) +
+      scale_color_manual(values = palette) +
+      scale_fill_manual(values = palette) + 
+      labs(color = "Distance", fill = "Distance") +  
+      theme(legend.position = "right") +
+      ggtitle(paste("Performance en fonction de l'âge \net de la distance", 
+                    classes[i], "\nchez les", gender))
+    
+    graphs[[i]] <- graph
+  }
+  return(graphs)
+}
+
+# Création des graphiques pour les femmes
+graphs_femmes <- create_graphs_by_class(meilleures_performances_femmes, "femmes", classe, palette_couleurs)
+
+# Création des graphiques pour les hommes
+graphs_hommes <- create_graphs_by_class(meilleures_performances_hommes, "hommes", classe, palette_couleurs)
+
+# Affichage des graphiques côte à côte
+for (i in seq_along(classe)) {
+  grid.arrange(graphs_femmes[[i]], graphs_hommes[[i]], ncol = 2)
+}
+
+```
+
+Sur les deux premiers graphiques,nous voici devant deux graphiques qui mettent en lumière la performance en fonction de l'âge et de la distance parcourue, en distinguant les données entre les hommes et les femmes pour des distances classées comme courtes. Ces visualisations nous permettent d'examiner les nuances de la performance athlétique en fonction du sexe et de la distance, offrant ainsi une compréhension plus nuancée de la dynamique âge-performance dans le domaine de l'athlétisme.
+
+À gauche, le graphique dédié aux femmes montre trois groupes de points : en brun pour les 800 mètres, en rose pour les 1500 mètres et en jaune pour les 3000 mètres. Il semble que pour les distances de 800 mètres, la vitesse atteint un pic dans la vingtaine avant de décroître. Pour les distances de 1500 et 3000 mètres, les pics de vitesse sont moins marqués, et la décroissance avec l'âge est plus graduelle.
+
+À droite, le graphique pour les hommes présente une tendance similaire, avec des vitesses plus élevées dans la jeunesse qui diminuent avec l'âge. Cependant, la vitesse maximale pour les 800 mètres chez les hommes est plus élevée que chez les femmes, et la diminution semble plus rapide après le pic de performance. Les distances de 1500 et 3000 mètres chez les hommes montrent également une baisse de la vitesse avec l'âge, mais avec une variabilité des performances moins prononcée que chez les femmes.
+
+Ces graphiques nous indiquent non seulement comment la performance change avec l'âge, mais ils révèlent également des différences de performance entre les sexes pour des distances équivalentes. Ils illustrent l'importance de considérer à la fois le genre et la distance lors de l'évaluation de la performance athlétique.
+
+Puis, dans ces graphiques, nous examinons la performance athlétique en fonction de l'âge pour les distances considérées comme moyennes : 5000 mètres et 10000 mètres. Ces distances, souvent associées à l'endurance plutôt qu'à la vitesse pure, nous donnent un aperçu de la manière dont la longévité et l'endurance évoluent avec l'âge chez les athlètes.
+
+À gauche, pour les femmes, nous observons que les points rouges représentant les 5000 mètres et les points bleus représentant les 10000 mètres suggèrent un sommet de performance dans la vingtaine à la trentaine pour les deux distances. Après cette période, la vitesse commence généralement à diminuer. La densité des points est plus élevée pour la distance de 5000 mètres, indiquant une plus grande concentration de données ou une préférence pour cette distance chez les athlètes féminines.
+
+Le graphique de droite montre les données masculines, où, semblablement, la performance pic à des vitesses légèrement plus élevées dans les jeunes années, avec une tendance à la baisse avec l'âge. Cependant, les points pour les 10000 mètres sont moins dispersés chez les hommes que chez les femmes, ce qui pourrait indiquer une variation de performance moins importante avec l'âge ou une moindre participation à cette distance.
+
+Pour les deux genres, ces graphiques mettent en lumière un modèle commun : les athlètes sont susceptibles d'atteindre leurs meilleures vitesses dans les disciplines de moyenne distance plus tôt dans leur carrière, avec un déclin progressif qui devient plus évident après la trentaine. Ces aperçus sont précieux pour comprendre comment les stratégies d'entraînement et de compétition pourraient être ajustées en fonction de l'âge et du genre pour optimiser les performances dans les événements de moyenne distance.
+
+
+Puis, ces graphiques montrent la performance en fonction de l'âge pour les longues distances chez les femmes et les hommes. Sur l'axe horizontal, nous avons l'âge des participants, et sur l'axe vertical, la vitesse est mesurée. Les points de couleur représentent les distances courues : les points violets correspondent à la demi-marathon (21,097.5 mètres) et les verts au marathon (42,195 mètres). Ces visualisations permettent d'observer les tendances et les pics de performance selon l'âge et le sexe des coureurs pour ces distances spécifiques.
+
+
+# Question 2
+
+## Comparaison des modèles sur la performance des joueurs en fonction de leur age
+
+Une fonction  a d'abord été crée, la fonction des **Moyennes des Moindres au Carré**, (*MMC*) afin d'établir un modèle choisi entre la performance en fonction de l'age sur les observations et ainsi observer sa tendance sur les différents parcours que les athlètes effectuent chez les hommes et les femmes. 
+
+```{r}
+
+MMC=function(age,vitesse,methode,nbpara,precision=10,borne=-Inf,initial=NULL){
+  
+  SQ_methode=function(p){ #Cette fonction permet de calculer la somme carre des residus            #theta sont les parametre qu 
+    sum((vitesse-methode(age,p))^2)}
+  
+  o=rep(10^6,precision) #o permet de stocker la fonction bjectif qu'on voudra le plus bas
+  r=rep(0,precision) #r permet de sotcker le RÂ²
+  para=rep(10^6,precision*(nbpara+1)) #pour stocker tout les parametres
+  
+  for (i in seq(nbpara+1,precision*(nbpara+1),nbpara+1)){
+    if(is.null(initial)){initial=runif(nbpara)}else{
+      intial=rnorm(nbpara,initial,1)
+    }
+    #On cherche le min parmi les 40 essaies (pas de 5 pour sotcker les 4 parametres, cf "ici")
+    sol=nlminb(start=initial,SQ_methode) #On initialise malheuresement avec runif... nlminb=optim
+    res= nlminb(start = sol$par,SQ_methode,lower=borne)
+    para[i:(i+nbpara-1)]=res$par #ici"
+    o[i/(nbpara+1)]=res$objective}
+  
+  compt=which.min(o) #ou etait le min de notre fonction a minimiser ? 
+  parametre=rep(0,nbpara)
+  parametre=para[((nbpara+1)*compt):(((nbpara+1)*compt)+(nbpara-1))] #on stock les meilleurs parametres
+  fit=methode(age,parametre) #regression 
+  R2=sum((fit-mean(vitesse))^2)/sum((vitesse-mean(vitesse))^2) #RÂ² 
+  #plot(age,vitesse,xlab="Age",ylab="Vitesse en m/s")
+  #lines(sort(age),methode(sort(age),parametre),col=round(runif(1,1,3),0))
+  peak=max((methode(sort(age),parametre)))
+  return(list(parametre=parametre,objectif=min(o),R2=R2,peak=peak))}
+
+
+par(mfrow=c(1,1))
+```
+
+Nous avons analysé différents modèles :
+
+- Le **Modèle Linéaire**
+
+- Le **Modèle Polynomial**
+
+- Le **Modèle de Moore**
+
+```{r}
+# Définition de la fonction de modèle linéaire
+modele_lineaire <- function(age, parametre) {
+  return(parametre[1] * age + parametre[2]) # Modèle linéaire : y = a*x + b
+}
+
+
+#Définition de la fonction de modèle polynomiale
+modele_polynomial <- function(age, parametre) {
+  return(parametre[1] + parametre[2] * age + parametre[3] * age^2) # Modèle polynomial d'ordre 2
+}
+
+
+# Définition de la fonction de modèle de Moore
+modele_moore <- function(x,p){
+    p[1]*(1-exp(-p[2]*x)) + p[3]*(1-exp(p[4]*x))
+  }
+
+
+```
+
+
+```{r}
+meilleures_performances_femmes<-meilleures_performances_femmes[1:3]
+meilleures_performances_hommes<-meilleures_performances_hommes[1:3]
+
+epreuves <- c("800", "1500", "3000", "5000", "10000", "21097.5", "42195")
+
+# Boucle sur chaque épreuve
+for(distance in epreuves) {
+  # Convertir distance en numérique si nécessaire
+  distance_num <- as.numeric(distance)
+  
+  #Filtrer les données pour la distance courante
+  femmes_data <- subset(meilleures_performances_femmes, distance == distance_num)
+  hommes_data <- subset(meilleures_performances_hommes, distance == distance_num)
+  
+  
+  # Ajustement des modèles aux données
+  resultats_lineaire_femmes <- MMC(femmes_data$age_entier, femmes_data$vitesse, modele_lineaire, nbpara = 2)
+  resultats_polynomial_femmes <- MMC(femmes_data$age_entier, femmes_data$vitesse, modele_polynomial, nbpara = 3)
+  resultats_moore_femmes <- MMC(femmes_data$age_entier, femmes_data$vitesse, modele_moore, nbpara = 4)
+  
+  resultats_lineaire_hommes <- MMC(hommes_data$age_entier, hommes_data$vitesse, modele_lineaire, nbpara = 2)
+  resultats_polynomial_hommes <- MMC(hommes_data$age_entier, hommes_data$vitesse, modele_polynomial, nbpara = 3)
+  resultats_moore_hommes <- MMC(hommes_data$age_entier, hommes_data$vitesse, modele_moore, nbpara = 4)
+  
+  par(mfrow=c(1,2))
+  # Tracer les ajustements sur un même graphique pour chaque distance
+  par(mar=c(5.1, 4.1, 4.1, 2.1))
+  plot(femmes_data$age_entier, femmes_data$vitesse, xlab = "Age", ylab = "Vitesse en m/s", main="femmes")
+  lines(sort(femmes_data$age_entier), modele_lineaire(sort(femmes_data$age_entier), resultats_lineaire_femmes$parametre), col = "red", lty = 1, lwd = 2)
+  lines(sort(femmes_data$age_entier), modele_polynomial(sort(femmes_data$age_entier), resultats_polynomial_femmes$parametre), col = "blue", lty = 2, lwd = 2)
+  lines(sort(femmes_data$age_entier), modele_moore(sort(femmes_data$age_entier), resultats_moore_femmes$parametre), col = "green", lty = 3, lwd = 2)
+  
+  # Tracer les ajustements sur un même graphique pour chaque distance
+  par(mar=c(5.1, 2.1, 4.1, 2.1))
+  plot(hommes_data$age_entier, hommes_data$vitesse, xlab = "Age", ylab = "Vitesse en m/s", main="hommes")
+  lines(sort(hommes_data$age_entier), modele_lineaire(sort(hommes_data$age_entier), resultats_lineaire_hommes$parametre), col = "red", lty = 1, lwd = 2)
+  lines(sort(hommes_data$age_entier), modele_polynomial(sort(hommes_data$age_entier), resultats_polynomial_hommes$parametre), col = "blue", lty = 2, lwd = 2)
+  lines(sort(hommes_data$age_entier), modele_moore(sort(hommes_data$age_entier), resultats_moore_hommes$parametre), col = "green", lty = 3, lwd = 2)
+  par(mar=c(4.1, 0, 4.1, 4.1)) # Ajuste les marges
+  legend(x="topright", inset=c(-0.1,0), # déplacez légèrement la légende vers la gauche et vers le bas
+         legend = c("Linéaire", "Polynomial", "Moore"), 
+         col = c("red", "blue", "green"), lty = 1:3, lwd = 2, cex = 0.75, bty = "n", xpd=NA)
+  mtext(side = 3, line = -3.7, text = sprintf("Comparaison des modèles pour l'épreuve de %s m", distance), outer = TRUE, cex = 1)
+  par(mfrow=c(1,1), mar=c(5.1, 4.1, 4.1, 2.1))
+}
+
+```
+
+**Sur 800m** :
+
+Les graphiques illustrent la performance athlétique sur la distance de 800 mètres en fonction de l'âge, avec une distinction entre les données pour les femmes et les hommes. On observe que pour les deux genres, le modèle polynomial, illustré par la ligne bleue en pointillés, épouse le mieux la distribution des points individuels, suggérant une performance qui augmente jusqu'à un certain âge avant de décliner. Cela contraste avec le modèle linéaire, représenté par la ligne rouge, qui montre une tendance constamment décroissante pour les hommes et croissante pour les femmes, ne capturant pas l'apogée de performance visible dans les données. Le modèle de Moore, en ligne verte pointillée, semble également moins adapté, en particulier pour les données masculines où il surévalue la performance aux âges extrêmes. Globalement, le modèle polynomial semble offrir la représentation la plus fidèle de l'effet de l'âge sur la performance sur 800 mètres, révélant un sommet de performance dans la tranche d'âge des 20 ans pour les deux genres avant une diminution avec l'avancement en âge.
+
+**Sur 1500m** :
+
+Dans ces graphiques, nous comparons les performances sur 1500 mètres pour les femmes et les hommes à travers trois modèles différents. Pour les femmes, le modèle polynomial semble mieux suivre la tendance des données, atteignant un pic avant de diminuer avec l'âge, tandis que le modèle linéaire suggère une performance stable et le modèle de Moore montre une surévaluation initiale puis une sous-évaluation de la performance. Pour les hommes, le modèle polynomial indique également une hausse et une baisse de la performance avec l'âge, mais la tendance décroissante est plus prononcée dans le modèle linéaire. Le modèle de Moore, bien qu'il suive une courbe similaire au modèle polynomial, semble moins précis, en particulier dans les tranches d'âge moyennes et plus élevées. Ces observations suggèrent que le modèle polynomial capte mieux les variations de performance en fonction de l'âge pour les épreuves de 1500 mètres.
+
+**Sur 3000m** :
+
+Les graphiques présentés illustrent la comparaison des performances sur la distance de 3000 mètres pour les femmes et les hommes en utilisant trois modèles statistiques différents : linéaire, polynomial et Moore. Chez les femmes, le modèle polynomial suit une courbe qui atteint un sommet avant de redescendre, indiquant une augmentation puis une diminution de la vitesse avec l'âge. Le modèle linéaire suggère une légère dégradation constante de la performance, alors que le modèle de Moore semble exagérer la performance au début de la courbe d'âge. Pour les hommes, le modèle polynomial démontre une diminution plus prononcée après le pic de performance comparé au modèle linéaire qui affiche une baisse constante sur toute la gamme d'âge. Le modèle de Moore pour les hommes montre également un pic précoce suivi d'une baisse, mais avec moins de précision par rapport au modèle polynomial. Ces tendances suggèrent que le modèle polynomial est plus à même de capturer la réalité de la variation de performance en fonction de l'âge pour les épreuves de 3000 mètres.
+
+
+**Sur 5000m** :
+
+Ces graphiques comparent les performances sur la distance de 5000 mètres pour les catégories féminines et masculines à travers différents modèles statistiques. Chez les femmes, la courbe du modèle polynomial montre un pic de performance avant de décliner, traduisant une hausse puis une baisse de la vitesse avec l'âge. Le modèle linéaire indique une décroissance relativement constante de la vitesse, tandis que le modèle de Moore semble surestimer la performance dans la première partie de la courbe d'âge avant de décliner fortement. Chez les hommes, le modèle polynomial capture également le pic de performance avant de montrer un déclin, en harmonie avec les données observées. Le modèle linéaire présente une pente décroissante constante, et le modèle de Moore affiche une surestimation initiale suivie d'une diminution. Comme pour les autres distances, le modèle polynomial paraît le plus adapté pour décrire la variation de performance avec l'âge sur 5000 mètres, car il suit de plus près la tendance des données réelles observées.
+
+
+**Sur 10000m** :
+
+Sur ce graphique, nous observons les performances sur la distance de 10000 mètres, comparées pour les femmes et les hommes à travers différents modèles. Chez les femmes, la courbe du modèle polynomial culmine avant de chuter, reflétant une augmentation puis une diminution de la vitesse avec l'âge. Le modèle linéaire suggère une baisse progressive de la vitesse, tandis que le modèle de Moore surévalue les performances dans la tranche d'âge plus jeune avant de montrer une baisse marquée. Chez les hommes, les résultats sont similaires avec le modèle polynomial dépeignant un pic de performance avant de descendre, ce qui semble correspondre aux données observées. Le modèle linéaire décrit une décroissance constante et le modèle de Moore indique une surestimation initiale puis une forte décroissance. Le modèle polynomial semble être le plus adéquat pour suivre la tendance des données réelles sur cette distance, démontrant sa capacité à représenter la variation de performance en fonction de l'âge.
+
+
+**Sur 21097.5m** :
+
+Le graphique illustre la comparaison des modèles de performance sur une distance de 21097.5 mètres (semi-marathon) pour les femmes et les hommes. Pour les deux genres, le modèle polynomial montre une performance qui augmente avec l'âge jusqu'à un certain point avant de décliner, ce qui suggère une performance optimale à un âge moyen spécifique. Le modèle linéaire indique une baisse régulière de la performance avec l'âge. Le modèle de Moore présente une surestimation des performances pour les tranches d'âge plus jeunes suivie d'une diminution rapide. Cette visualisation des données suggère que le modèle polynomial capture le mieux la nature des performances athlétiques sur des distances semi-marathon, en reflétant un pic de performance avant une diminution attendue avec l'âge avancé.
+
+
+**Sur 42195m** :
+
+Sur ces graphiques, nous comparons les performances des athlètes sur la distance marathon (42195 mètres) à travers trois modèles différents. Pour les femmes comme pour les hommes, le modèle polynomial suit une courbe qui monte jusqu'à un point culminant avant de redescendre, suggérant un âge de performance optimale. Le modèle linéaire montre une dégradation constante de la performance avec l'âge. Quant au modèle de Moore, il présente une performance initialement surévaluée pour les plus jeunes avant de chuter rapidement, ce qui semble moins représentatif des données observées. Ces tendances mettent en évidence que le modèle polynomial est probablement le plus adapté pour refléter la réalité des performances sur un marathon, avec un pic de performance avant un déclin lié à l'âge.
+
+
+## L'analyse du meilleure modèle 
+
+```{r}
+#FEMMES
+
+femmes_data_800<-subset(meilleures_performances_femmes, distance == 800)
+femmes_data_1500<-subset(meilleures_performances_femmes, distance == 1500)
+femmes_data_3000<-subset(meilleures_performances_femmes, distance == 3000)
+femmes_data_5000<-subset(meilleures_performances_femmes, distance == 5000)
+femmes_data_10000<-subset(meilleures_performances_femmes, distance == 10000)
+femmes_data_21097.5<-subset(meilleures_performances_femmes, distance == 21097.5)
+femmes_data_42195<-subset(meilleures_performances_femmes, distance == 42195)
+
+#HOMMES
+hommes_data_800<-subset(meilleures_performances_hommes, distance == 800)
+hommes_data_1500<-subset(meilleures_performances_hommes, distance == 1500)
+hommes_data_3000<-subset(meilleures_performances_hommes, distance == 3000)
+hommes_data_5000<-subset(meilleures_performances_hommes, distance == 5000)
+hommes_data_10000<-subset(meilleures_performances_hommes, distance == 10000)
+hommes_data_21097.5<-subset(meilleures_performances_hommes, distance == 21097.5)
+hommes_data_42195<-subset(meilleures_performances_hommes, distance == 42195)
+```
+
+Nous avons approfondit l'analyse de la relation entre l'âge et la performance. L'accent est mis sur l'ajustement de trois modèles mathématiques - linéaire, polynomial et celui de Moore - à des ensembles de données sur des performances sportives. Nous utilisons ici des méthodes statistiques pour déterminer quel modèle représente le mieux les données. Cet ajustement des modèles est crucial pour comprendre les tendances dans les performances liées à l'âge et potentiellement pour prédire les performances futures. Le calcul des résidus, le coefficient de détermination ajusté (R² ajusté), l'AICc et le BIC nous aideront à évaluer la précision des modèles. Cela mettra en évidence l'importance d'une sélection rigoureuse du modèle pour interpréter correctement les données et tirer des conclusions fiables sur la relation âge-performance.
+
+
+Dans cette étape, nous allons nous pencher sur l'examen des résidus des différents modèles pour les catégories hommes et femmes. L'objectif est de déterminer si les modèles sélectionnés reflètent adéquatement les données réelles. Pour ce faire, l'analyse de la normalité des résidus sera notre point de départ ; cela nous permettra de comprendre si les écarts entre les performances prédites par nos modèles et les performances réelles observées suivent une distribution normale. Cette normalité est un indicateur clé de la fiabilité de nos modèles et de leur pertinence pour représenter la relation entre l'âge et la performance athlétique. Si les résidus sont normalement distribués, cela renforce notre confiance dans les modèles utilisés et justifie leur application pour les interprétations ultérieures.
+
+# Question 3
+
+## Normalité Modèle linéaire
+
+```{r}
+par(mfrow=c(2,2))
+plot(lm(meilleures_performances_femmes$vitesse~ meilleures_performances_femmes$age_entier))
+par(mfrow=c(1,1))
+```
+
+Ces graphiques sont utilisés pour évaluer la pertinence d'un modèle linéaire. 
+
+- **Résidus vs valeurs ajustées**: montre s'il y a des tendances dans les erreurs du modèle.
+
+- **Graphique Q-Q**: compare la distribution des erreurs à la normale, indiquant si les résidus sont bien distribués.
+
+- **Échelle-Localisation**: vérifie si la variabilité des erreurs est constante à travers les prédictions.
+
+- **Résidus vs Levier**: identifie les données qui influencent le plus le modèle.
+
+Ensemble, ces graphiques aident à vérifier si le modèle est bien ajusté et si les hypothèses de base de la régression linéaire sont respectées.
+
+## Normalité Modèle polynomiale
+
+```{r}
+par(mfrow=c(2,2))
+plot(lm(meilleures_performances_femmes$vitesse~ I(meilleures_performances_femmes$age_entier)^2))
+par(mfrow=c(1,1))
+```
+
+Ce graphique présente quatre diagnostics différents pour un modèle linéaire appliqué aux données de performance athlétique des femmes:
+
+- **Résidus vs valeurs ajustées**: Montre une certaine tendance des résidus autour de la ligne horizontale, suggérant des non-linéarités dans le modèle ou des erreurs non constantes.
+
+- **Graphique Q-Q des résidus**: Si les points se situent approximativement sur la ligne, cela indique que les résidus suivent une distribution normale. Ici, il semble y avoir une légère déviation dans les extrêmes.
+
+- **Échelle-Localisation**: Sert à vérifier l'homogénéité des variances des résidus (homoscédasticité). On recherche une dispersion aléatoire autour de la ligne horizontale. Dans ce cas, on observe une certaine hétérogénéité vers les valeurs ajustées plus élevées.
+
+- **Résidus vs Levier**: Permet de détecter les valeurs influentes qui peuvent avoir un effet indû sur l'analyse. Les points au-delà du seuil de Cook's distance pourraient indiquer une influence potentiellement excessive. Sur ce graphique, il ne semble pas y avoir de valeurs aberrantes ayant une influence excessive. 
+
+Chacun de ces diagnostics aide à identifier les aspects du modèle linéaire qui pourraient être améliorés.
+
+Après avoir verifier les autres modèles, noous avons étudié l'AIC, le BIC, le R2 ajusté et la somme des résidus de chaque modèle afin de voir quel est le meilleur modèle.
+
+## Calcul des différents critères
+
+
+```{r}
+resultats_lineaire_800_femmes <- MMC(femmes_data_800$age_entier, femmes_data_800$vitesse, modele_lineaire, nbpara = 2)
+resultats_polynomial_800_femmes <- MMC(femmes_data_800$age_entier, femmes_data_800$vitesse, modele_polynomial, nbpara = 3)
+resultats_moore_800_femmes <- MMC(femmes_data_800$age_entier, femmes_data_800$vitesse, modele_moore, nbpara = 4)
+resultats_lineaire_1500_femmes <- MMC(femmes_data_1500$age_entier, femmes_data_1500$vitesse, modele_lineaire, nbpara = 2)
+resultats_polynomial_1500_femmes <- MMC(femmes_data_1500$age_entier, femmes_data_1500$vitesse, modele_polynomial, nbpara = 3)
+resultats_moore_1500_femmes <- MMC(femmes_data_1500$age_entier, femmes_data_1500$vitesse, modele_moore, nbpara = 4)
+resultats_lineaire_3000_femmes <- MMC(femmes_data_3000$age_entier, femmes_data_3000$vitesse, modele_lineaire, nbpara = 2)
+resultats_polynomial_3000_femmes <- MMC(femmes_data_3000$age_entier, femmes_data_3000$vitesse, modele_polynomial, nbpara = 3)
+resultats_moore_3000_femmes <- MMC(femmes_data_3000$age_entier, femmes_data_3000$vitesse, modele_moore, nbpara = 4)
+resultats_lineaire_5000_femmes <- MMC(femmes_data_5000$age_entier, femmes_data_5000$vitesse, modele_lineaire, nbpara = 2)
+resultats_polynomial_5000_femmes <- MMC(femmes_data_5000$age_entier, femmes_data_5000$vitesse, modele_polynomial, nbpara = 3)
+resultats_moore_5000_femmes <- MMC(femmes_data_5000$age_entier, femmes_data_5000$vitesse, modele_moore, nbpara = 4)
+resultats_lineaire_10000_femmes <- MMC(femmes_data_10000$age_entier, femmes_data_10000$vitesse, modele_lineaire, nbpara = 2)
+resultats_polynomial_10000_femmes <- MMC(femmes_data_10000$age_entier, femmes_data_10000$vitesse, modele_polynomial, nbpara = 3)
+resultats_moore_10000_femmes <- MMC(femmes_data_10000$age_entier, femmes_data_10000$vitesse, modele_moore, nbpara = 4)
+resultats_lineaire_21097.5_femmes <- MMC(femmes_data_21097.5$age_entier, femmes_data_21097.5$vitesse, modele_lineaire, nbpara = 2)
+resultats_polynomial_21097.5_femmes <- MMC(femmes_data_21097.5$age_entier, femmes_data_21097.5$vitesse, modele_polynomial, nbpara = 3)
+resultats_moore_21097.5_femmes <- MMC(femmes_data_21097.5$age_entier, femmes_data_21097.5$vitesse, modele_moore, nbpara = 4)
+resultats_lineaire_42195_femmes <- MMC(femmes_data_42195$age_entier, femmes_data_42195$vitesse, modele_lineaire, nbpara = 2)
+resultats_polynomial_42195_femmes <- MMC(femmes_data_42195$age_entier, femmes_data_42195$vitesse, modele_polynomial, nbpara = 3)
+resultats_moore_42195_femmes <- MMC(femmes_data_42195$age_entier, femmes_data_42195$vitesse, modele_moore, nbpara = 4)
+
+resultats_lineaire_800_hommes <- MMC(hommes_data_800$age_entier, hommes_data_800$vitesse, modele_lineaire, nbpara = 2)
+resultats_polynomial_800_hommes <- MMC(hommes_data_800$age_entier, hommes_data_800$vitesse, modele_polynomial, nbpara = 3)
+resultats_moore_800_hommes <- MMC(hommes_data_800$age_entier, hommes_data_800$vitesse, modele_moore, nbpara = 4)
+resultats_lineaire_1500_hommes <- MMC(hommes_data_1500$age_entier, hommes_data_1500$vitesse, modele_lineaire, nbpara = 2)
+resultats_polynomial_1500_hommes <- MMC(hommes_data_1500$age_entier, hommes_data_1500$vitesse, modele_polynomial, nbpara = 3)
+resultats_moore_1500_hommes <- MMC(hommes_data_1500$age_entier, hommes_data_1500$vitesse, modele_moore, nbpara = 4)
+resultats_lineaire_3000_hommes <- MMC(hommes_data_3000$age_entier, hommes_data_3000$vitesse, modele_lineaire, nbpara = 2)
+resultats_polynomial_3000_hommes <- MMC(hommes_data_3000$age_entier, hommes_data_3000$vitesse, modele_polynomial, nbpara = 3)
+resultats_moore_3000_hommes <- MMC(hommes_data_3000$age_entier, hommes_data_3000$vitesse, modele_moore, nbpara = 4)
+resultats_lineaire_5000_hommes <- MMC(hommes_data_5000$age_entier, hommes_data_5000$vitesse, modele_lineaire, nbpara = 2)
+resultats_polynomial_5000_hommes <- MMC(hommes_data_5000$age_entier, hommes_data_5000$vitesse, modele_polynomial, nbpara = 3)
+resultats_moore_5000_hommes <- MMC(hommes_data_5000$age_entier, hommes_data_5000$vitesse, modele_moore, nbpara = 4)
+resultats_lineaire_10000_hommes <- MMC(hommes_data_10000$age_entier, hommes_data_10000$vitesse, modele_lineaire, nbpara = 2)
+resultats_polynomial_10000_hommes <- MMC(hommes_data_10000$age_entier, hommes_data_10000$vitesse, modele_polynomial, nbpara = 3)
+resultats_moore_10000_hommes <- MMC(hommes_data_10000$age_entier, hommes_data_10000$vitesse, modele_moore, nbpara = 4)
+resultats_lineaire_21097.5_hommes <- MMC(hommes_data_21097.5$age_entier, hommes_data_21097.5$vitesse, modele_lineaire, nbpara = 2)
+resultats_polynomial_21097.5_hommes <- MMC(hommes_data_21097.5$age_entier, hommes_data_21097.5$vitesse, modele_polynomial, nbpara = 3)
+resultats_moore_21097.5_hommes <- MMC(hommes_data_21097.5$age_entier, hommes_data_21097.5$vitesse, modele_moore, nbpara = 4)
+resultats_lineaire_42195_hommes <- MMC(hommes_data_42195$age_entier, hommes_data_42195$vitesse, modele_lineaire, nbpara = 2)
+resultats_polynomial_42195_hommes <- MMC(hommes_data_42195$age_entier, hommes_data_42195$vitesse, modele_polynomial, nbpara = 3)
+resultats_moore_42195_hommes <- MMC(hommes_data_42195$age_entier, hommes_data_42195$vitesse, modele_moore, nbpara = 4)
+```
+
+```{r}
+# Fonction pour calculer et retourner un dataframe de résultats
+compute_results <- function(data, linear_result, polynomial_result, moore_result, distance, gender) {
+  n <- length(data$age_entier)  # Nombre d'observations
+  
+  # Calculs pour le modèle linéaire
+  RSS_linear <- sum(residuals(lm(data$vitesse ~ data$age_entier))^2)
+  k_linear <- 2  # Nombre de paramètres pour le modèle linéaire
+  R2_linear <- linear_result$R2
+  R2_ajuste_linear <- 1 - ((1 - R2_linear) * (n - 1)) / (n - k_linear - 1)
+  AIC_linear <- n * log(RSS_linear/n) + 2 * k_linear + (2*k_linear*(k_linear + 1)) / (n - k_linear - 1)
+  BIC_linear <- n * log(RSS_linear/n) + k_linear * log(n)
+  
+  # Calculs pour le modèle polynomial
+  RSS_poly <- sum(residuals(lm(data$vitesse ~ I(data$age_entier)^2))^2)
+  k_poly <- 3  # Nombre de paramètres pour le modèle polynomial
+  R2_poly <- polynomial_result$R2
+  R2_ajuste_poly <- 1 - ((1 - R2_poly) * (n - 1)) / (n - k_poly - 1)
+  AIC_poly <- n * log(RSS_poly/n) + 2 * k_poly + (2*k_poly*(k_poly + 1)) / (n - k_poly - 1)
+  BIC_poly <- n * log(RSS_poly/n) + k_poly * log(n)
+  
+  # Calculs pour le modèle de Moore
+  RSS_moore <- moore_result$objectif
+  k_moore <- 4  # Nombre de paramètres pour le modèle de Moore
+  R2_moore <- moore_result$R2
+  R2_ajuste_moore <- 1 - ((1 - R2_moore) * (n - 1)) / (n - k_moore - 1)
+  AIC_moore <- n * log(RSS_moore/n) + 2 * k_moore + (2*k_moore*(k_moore + 1)) / (n - k_moore - 1)
+  BIC_moore <- n * log(RSS_moore/n) + k_moore * log(n)
+  
+  # Création du dataframe de résultats
+  results <- data.frame(
+    Distance = distance,
+    Gender = gender,
+    RSS_Linear = RSS_linear,
+    R2_Linear = R2_ajuste_linear,
+    AIC_Linear = AIC_linear,
+    BIC_Linear = BIC_linear,
+    RSS_Poly = RSS_poly,
+    R2_Poly = R2_ajuste_poly,
+    AIC_Poly = AIC_poly,
+    BIC_Poly = BIC_poly,
+    RSS_Moore = RSS_moore,
+    R2_Moore = R2_ajuste_moore,
+    AIC_Moore = AIC_moore,
+    BIC_Moore = BIC_moore
+  )
+  
+  return(results)
+}
+
+# Liste des distances
+distances <- c("800", "1500", "3000", "5000", "10000", "21097.5", "42195")
+
+# Initialisation du dataframe pour rassembler les résultats
+all_results <- data.frame()
+
+# Calculer les résultats pour les hommes et les femmes
+for (gender in c("femmes", "hommes")) {
+  for (distance in distances) {
+    # Ici, on suppose que les noms des variables et les résultats sont correctement assignés
+    # et disponibles dans l'environnement R.
+    gender_data <- get(paste0(gender, "_data_", distance))
+    linear_result <- get(paste0("resultats_lineaire_", distance, "_", gender))
+    polynomial_result <- get(paste0("resultats_polynomial_", distance, "_", gender))
+    moore_result <- get(paste0("resultats_moore_", distance, "_", gender))
+    
+    # Ajout des résultats dans le dataframe global
+    all_results <- rbind(all_results, compute_results(gender_data, linear_result, polynomial_result, moore_result, distance, gender))
+  }
+}
+
+# Transformation des données pour la visualisation avec ggplot2
+# Transformation des données pour la visualisation avec ggplot2
+results_long <- all_results %>%
+  pivot_longer(
+    cols = -c(Distance, Gender),
+    names_to = c("Metric", "Model"),
+    names_sep = "_",
+    values_to = "Value"
+  )
+
+
+
+library(forcats) # pour la fonction fct_relevel
+
+# Assurez-vous que Distance est un facteur et réordonnez les niveaux
+results_long$Distance <- factor(results_long$Distance, 
+                                levels = c("800", "1500", "3000", "5000", "10000", "21097.5", "42195"))
+
+# Créer un sous-ensemble de données pour chaque métrique
+aic_data <- subset(results_long, Metric == "AIC")
+bic_data <- subset(results_long, Metric == "BIC")
+r2_data <- subset(results_long, Metric == "R2")
+rss_data <- subset(results_long, Metric == "RSS")
+
+# Définir une fonction pour générer le graphique pour chaque métrique
+plot_metric <- function(data, metric_name) {
+  ggplot(data, aes(x = Distance, y = Value, color = Gender)) +
+    geom_line(aes(linetype = Gender), size = 1) +
+    geom_point(aes(shape = Gender), size = 3) +
+    facet_wrap(~ Model, ncol = 1) + # Chaque modèle dans sa propre colonne
+    theme_minimal() +
+    labs(title = paste("Comparaison des modèles pour la métrique", metric_name),
+         x = "Distance", y = "Valeur") +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1),
+          legend.position = "bottom") +
+    scale_color_manual(values = c("femmes" = "pink", "hommes" = "skyblue")) +
+    guides(linetype = guide_legend(override.aes = list(size = 2)),
+           shape = guide_legend(override.aes = list(size = 5))) +
+    scale_x_discrete(limits = c("800", "1500", "3000", "5000", "10000", "21097.5", "42195"))
+}
+
+# Afficher les graphiques pour chaque métrique
+plot_metric(aic_data, "AIC")
+plot_metric(bic_data, "BIC")
+plot_metric(r2_data, "R2 Ajusté")
+plot_metric(rss_data, "RSS")
+
+
+```
+
+**La méthode AIC** :
+
+D'accord, je vais te décrire le graphique en détail.
+
+Le graphique que tu observes est un ensemble de six sous-graphiques empilés, chacun représentant les valeurs de l'AIC pour les modèles linéaire, Moore et polynomial. L'AIC, ou Critère d'Information d'Akaike, est une mesure de la qualité d'un modèle statistique : plus la valeur de l'AIC est basse, meilleur est le modèle. Sur le graphique, chaque point correspond à une valeur d'AIC pour un modèle spécifique et une distance donnée, séparée par genre (femmes en rose, hommes en bleu).
+
+Pour chaque distance parcourue - 800 m, 1500 m, 3000 m, 5000 m, 10000 m, 21097.5 m (demi-marathon) et 42195 m (marathon) - il y a trois paires de points, chaque paire correspondant à l'un des trois modèles. Ces paires de points montrent la performance des modèles pour les femmes et les hommes séparément.
+
+En analysant le graphique, on constate que le modèle polynomial (indiqué par des triangles) tend à avoir les valeurs d'AIC les plus basses à travers presque toutes les distances pour les deux sexes, ce qui suggère qu'il s'adapte mieux aux données par rapport aux modèles linéaire (cercles) et Moore (carrés). Cela signifie que le modèle polynomial est le plus susceptible de bien représenter la relation entre l'âge et la performance pour ces ensembles de données, et il pourrait donc être préféré pour des prédictions ou des analyses futures.
+
+
+**La méthode BIC** :
+
+Le graphique affiche une comparaison des modèles statistiques en fonction de la métrique BIC (Critère d'information bayésien) pour différentes distances de courses, avec des valeurs pour les femmes (en rose) et les hommes (en bleu). Le BIC est similaire à l'AIC mais inclut un terme de pénalisation pour le nombre de paramètres dans le modèle, favorisant ainsi les modèles plus simples. Comme pour l'AIC, une valeur BIC plus basse indique un meilleur modèle.
+
+Chaque sous-graphique correspond à un modèle spécifique - linéaire, Moore et polynomial - et montre les valeurs BIC pour chaque distance parcourue (800 m, 1500 m, 3000 m, 5000 m, 10000 m, 21097.5 m et 42195 m). Les triangles représentent les valeurs BIC pour chaque modèle et distance.
+
+Si on observe le modèle polynomial (représenté par la rangée de triangles dans le sous-graphique du bas), on peut voir que ce modèle a généralement les valeurs BIC les plus basses pour la plupart des distances et pour les deux genres, ce qui suggère qu'il offre un meilleur équilibre entre la complexité du modèle et la qualité de l'ajustement par rapport aux modèles linéaire et Moore pour ces données de course. Cela implique que le modèle polynomial pourrait être préféré pour de futures prévisions ou analyses dans des contextes similaires.
+
+
+**Le R2 Ajusté** :
+
+Ce graphique illustre la comparaison des modèles statistiques en fonction du R2 ajusté pour différentes distances de courses chez les femmes (en rose) et les hommes (en bleu). Le R2 ajusté est une version modifiée du coefficient de détermination R2, qui tient compte du nombre de prédicteurs dans le modèle, permettant ainsi de comparer des modèles avec un nombre différent de prédicteurs.
+
+Les trois sous-graphiques montrent les valeurs du R2 ajusté pour les modèles linéaire, Moore, et polynomial. Les points indiquent la valeur du R2 ajusté pour chaque distance (800 m, 1500 m, 3000 m, 5000 m, 10000 m, 21097.5 m, et 42195 m).
+
+Si l'on observe le modèle polynomial (troisième rangée de points), on remarque qu'il présente généralement les valeurs de R2 ajusté les plus élevées pour la plupart des distances, indiquant qu'il explique une plus grande proportion de la variance des données après ajustement pour le nombre de prédicteurs, comparé aux modèles linéaire et Moore.
+
+Cela suggère que le modèle polynomial, qui est capable de capturer les relations non-linéaires entre l'âge et la vitesse, pourrait être le modèle le plus approprié pour ces données. Il semble donc que le modèle polynomial soit le meilleur choix en termes de capacité à expliquer la variation des performances en fonction de l'âge pour ces distances de courses et pour les deux genres.
+
+**Le RSS** :
+
+Le graphique présente la comparaison des valeurs de la somme des carrés des résidus (RSS) pour trois différents modèles statistiques - linéaire, Moore, et polynomial - en relation avec les performances sportives sur diverses distances, séparément pour les femmes et les hommes. Les RSS sont des indicateurs de la quantité d'erreur non expliquée par le modèle. 
+
+Les distances représentées sont 800 m, 1500 m, 3000 m, 5000 m, 10000 m, semi-marathon (21097.5 m), et marathon (42195 m). Les triangles roses représentent les femmes, tandis que les triangles bleus représentent les hommes. 
+
+Un RSS plus bas suggère un meilleur ajustement du modèle aux données. En regardant le modèle polynomial (troisième rangée de points), on peut observer que pour la plupart des distances, ce modèle a les valeurs de RSS les plus basses pour les deux sexes, ce qui indique qu'il est le plus performant des trois modèles à capter la variation dans les données de vitesse en fonction de l'âge. Cela est cohérent avec la nature souvent non-linéaire de la relation entre l'âge et la performance, que le modèle polynomial est bien équipé pour capturer.
+
+
+# Question 4
+
+Nous abordons maintenant la question 4, qui nous invite à analyser la relation entre l'âge et la performance athlétique. Les données suggèrent une tendance en forme de "U" inversé, indiquant un pic de performance – le point le plus élevé de la courbe. L'objectif est de déterminer si ce pic survient à un âge spécifique, indépendamment de l'épreuve ou de la discipline sportive. En utilisant la méthode MMC et la fonction optimize de R, nous cherchons à calculer cet âge optimal pour différentes épreuves et à en déduire des conclusions sur l'âge de performance maximale pour chaque discipline étudiée.
+
+## De manière globale
+
+```{r}
+modeles <- c("modele_lineaire", "modele_polynomial", "modele_moore")
+results <- data.frame(sexe = character(),
+                       epreuve = character(),
+                       modele = character(),
+                       vitessemaximum = numeric(),
+                       age_maximum = numeric(),
+                       stringsAsFactors = FALSE)
+
+find_age_peak <- function(modele_function, params, ages) {
+  opt_fun <- function(t) -modele_function(t, params)
+  opt_result <- optimize(f = opt_fun, interval = c(min(ages), max(ages)))
+  age_peak <- opt_result$minimum
+  performance_max <- -opt_result$objective
+  return(list(age_peak = age_peak, performance_max = performance_max))
+}
+
+for(epreuve in epreuves) {
+  distance_num <- as.numeric(epreuve)
+  
+  femmes_data <- subset(meilleures_performances_femmes, distance == distance_num)
+  hommes_data <- subset(meilleures_performances_hommes, distance == distance_num)
+  
+  for(modele_name in modeles) {
+    modele_function <- get(modele_name)
+    nbpara <- ifelse(modele_name == "modele_lineaire", 2, ifelse(modele_name == "modele_polynomial", 3, 4))
+    
+    resultats_femmes <- MMC(femmes_data$age_entier, femmes_data$vitesse, modele_function, nbpara)
+    
+    age_peak_result_femmes <- find_age_peak(modele_function, resultats_femmes$parametre, femmes_data$age_entier)
+    
+    resultats_hommes <- MMC(hommes_data$age_entier, hommes_data$vitesse, modele_function, nbpara)
+    
+    age_peak_result_hommes <- find_age_peak(modele_function, resultats_hommes$parametre, hommes_data$age_entier)
+    
+    results <- rbind(results, data.frame(
+      sexe = "femmes",
+      epreuve = epreuve,
+      modele = modele_name,
+      vitessemaximum = age_peak_result_femmes$performance_max,
+      age_maximum = age_peak_result_femmes$age_peak
+    ))
+    
+    results <- rbind(results, data.frame(
+      sexe = "hommes",
+      epreuve = epreuve,
+      modele = modele_name,
+      vitessemaximum = age_peak_result_hommes$performance_max,
+      age_maximum = age_peak_result_hommes$age_peak
+    ))
+  }
+}
+
+results$age <- round(results$age)
+head(results, 10)
+
+table(results$age)
+```
+
+Le tableau résume les âges où les performances athlétiques sont optimales, en fonction des différents modèles et épreuves. Bien qu'il n'y ait pas d'âge spécifique dominant où la performance est au sommet pour toutes les épreuves, nous pouvons observer une tendance intéressante : l'âge de 28 ans apparaît plus fréquemment que les autres comme l'âge de performance optimale. Cela suggère que, bien qu'il n'y ait pas de règle absolue, 28 ans pourrait être un âge clé pour atteindre des sommets de performance dans diverses disciplines sportives selon nos modèles.
+
+## Pour les hommes 
+
+```{r}
+results_h <- subset(results, sexe=="hommes")
+table(results_h$age)
+```
+
+Pour les hommes, l'analyse des âges où la performance est optimale révèle une distribution assez équilibrée sur une large gamme d'âges.
+
+## Pour les femmes 
+
+```{r}
+results_f <- subset(results, sexe=="femmes")
+table(results_f$age)
+```
+
+Pour les femmes, l'analyse des âges où la performance est optimale révèle une distribution assez équilibrée sur une large gamme d'âges.
+
+
+# Question 5
+
+Nous passons désormais à l'exercice 5, où nous intégrons un nouveau jeu de données provenant du fichier "resultats_joueurs_echecs.csv". Ce fichier contient les performances des joueurs d'échecs, avec pour chaque joueur (identifié par la colonne "nom") un nombre de points ("Points") associé à un âge spécifique. L'objectif est d'afficher la courbe des performances en fonction de l'âge. Pour cela, nous devrons d'abord calculer les âges des joueurs quand cela est possible, puis répliquer les démarches entreprises précédemment pour visualiser cette relation entre l'âge et les points accumulés aux échecs.
+
+## Importation et nettoyage des données 
+
+```{r}
+resultats_joueurs_echecs <- read.csv2("resultats_joueurs_echecs.txt", sep = ";")
+```
+
+Ce code effectue plusieurs opérations de nettoyage et de préparation des données sur le jeu de données "*resultats_joueurs_echecs*" :
+
+- **Suppression des données incomplètes** : élimine les lignes où les informations essentielles (l'année de performance "*Année*", la date de naissance "*Date.naissance*", et le nombre de points "*Points*") sont absentes ou vides. Cette étape assure que seules les données complètes sont analysées.
+
+- **Extraction et conversion de l'année de naissance** : isole l'année à partir de la date de naissance, en extrayant les quatre premiers caractères de Date.naissance, et convertit cette sous-chaîne en numérique. Cela permet de manipuler de pouvoir ensuite manipulé cette donnée pour faire le calcul de l'âge.
+
+- **Calcul de l'âge** : détermine l'âge des joueurs au moment de leur performance en soustrayant l'année de naissance de l'année de la performance (Année). Le résultat est sauvegardé dans une nouvelle colonne age.
+
+- **Nettoyage des données de performance** : ajuste la colonne Points en supprimant le premier caractère (qui est un espace) et en convertissant le reste en numérique.
+
+- **Filtrage final** : élimine toute donnée où l'âge calculé est négatif, car il y avait certaines données liées à l'âge qui étaient négatives.
+
+```{r}
+resultats_joueurs_echecs <- resultats_joueurs_echecs[!(is.na(resultats_joueurs_echecs$Année) |
+                                                         resultats_joueurs_echecs$Année == "" |
+                                                         is.na(resultats_joueurs_echecs$Date.naissance) |
+                                                         resultats_joueurs_echecs$Date.naissance == "" |
+                                                         is.na(resultats_joueurs_echecs$Points) |
+                                                         resultats_joueurs_echecs$Points == ""), ]
+
+resultats_joueurs_echecs$année.naissance <- substr(resultats_joueurs_echecs$Date.naissance, 1, 4)
+resultats_joueurs_echecs$année.naissance <- as.numeric(resultats_joueurs_echecs$année.naissance)
+
+
+resultats_joueurs_echecs$age <- resultats_joueurs_echecs$Année - resultats_joueurs_echecs$année.naissance
+
+resultats_joueurs_echecs$Points <- substr(resultats_joueurs_echecs$Points, 2, 5)
+
+resultats_joueurs_echecs$Points <- as.numeric(resultats_joueurs_echecs$Points)
+echec <-subset(resultats_joueurs_echecs, age >= 0)
+```
+
+On réalise un summary pour vérifier une dernière fois l'absence de données aberrantes.
+
+```{r}
+summary(echec)
+```
+
+## Représentation des données
+
+```{r}
+echecs <- select(echec, age, Points)
+plot(echec$age, echec$Points) #On remarque qu'il y a 2 groupe, des personnes au dessus de 2000 et des personnes en dessous de 1000.
+```
+
+Le graphique illustre clairement la présence de deux groupes distincts lorsqu'on observe la relation entre l'âge et les points chez les joueurs d'échecs. Ces deux groupes pourraient indiquer des tendances ou des caractéristiques spécifiques au sein de la population étudiée. 
+Il pourrait être intéressant de diviser la base de données pour analyser chaque groupe séparément.
+
+## Représentation graphique des 3 modèles
+
+```{r}
+groupe_sup_1500 <- subset(echecs, Points > 1500)
+
+groupe_inf_1500 <- subset(echecs, Points < 1500)
+
+modele_lineaire_echec_sup <- MMC(groupe_sup_1500$age, groupe_sup_1500$Points, modele_lineaire, nbpara = 2)
+modele_polynomial_echec_sup <- MMC(groupe_sup_1500$age, groupe_sup_1500$Points, modele_polynomial, nbpara = 3)
+modele_moore_echec_sup <- MMC(groupe_sup_1500$age, groupe_sup_1500$Points, modele_moore, nbpara = 4)
+
+
+modele_lineaire_echec_inf <- MMC(groupe_inf_1500$age, groupe_inf_1500$Points, modele_lineaire, nbpara = 2)
+modele_polynomial_echec_inf <- MMC(groupe_inf_1500$age, groupe_inf_1500$Points, modele_polynomial, nbpara = 3)
+modele_moore_echec_inf <- MMC(groupe_inf_1500$age, groupe_inf_1500$Points, modele_moore, nbpara = 4)
+
+par(mfrow=c(1,2))
+plot(groupe_sup_1500$age, groupe_sup_1500$Points, main ="Echec\nComparaison des modèles")
+lines(sort(groupe_sup_1500$age), modele_lineaire(sort(groupe_sup_1500$age), modele_lineaire_echec_sup$parametre), col = "red", lty = 1, lwd = 2)
+lines(sort(groupe_sup_1500$age), modele_polynomial(sort(groupe_sup_1500$age), modele_polynomial_echec_sup$parametre), col = "blue", lty = 2, lwd = 2)
+lines(sort(groupe_sup_1500$age), modele_moore(sort(groupe_sup_1500$age), modele_moore_echec_sup$parametre), col = "green", lty = 3, lwd = 2)
+# Visuelement il y a peut être pas de meilleurs modèle il va falloir calculer les différents critères.
+
+plot(groupe_inf_1500$age, groupe_inf_1500$Points, main ="Echec\nComparaison des modèles")
+lines(sort(groupe_inf_1500$age), modele_lineaire(sort(groupe_inf_1500$age), modele_lineaire_echec_inf$parametre), col = "red", lty = 1, lwd = 2)
+lines(sort(groupe_inf_1500$age), modele_polynomial(sort(groupe_inf_1500$age), modele_polynomial_echec_inf$parametre), col = "blue", lty = 2, lwd = 2)
+lines(sort(groupe_inf_1500$age), modele_moore(sort(groupe_inf_1500$age), modele_moore_echec_inf$parametre), col = "green", lty = 3, lwd = 2)
+par(mar=c(4.1, 0, 4.1, 4.1))
+legend(x="topright", inset=c(-0.1,0), # déplacez légèrement la légende vers la gauche et vers le bas
+       legend = c("Linéaire", "Polynomial", "Moore"), 
+       col = c("red", "blue", "green"), lty = 1:3, lwd = 2, cex = 0.75, bty = "n", xpd=NA)
+par(mar=c(5.1, 4.1, 4.1, 2.1))
+par(mfrow=c(1,1))
+```
+
+Sur ces deux graphiques, nous observons la performance des joueurs d'échecs en fonction de leur âge, divisée en deux groupes selon leur nombre de points. Le graphique de gauche représente les joueurs avec plus de 1500 points, tandis que celui de droite concerne les joueurs avec moins de 1500 points.
+
+- Pour les joueurs au-dessus de 1500 points, les modèles linéaire, polynomial et Moore sont assez proches les uns des autres, suggérant une relation stable entre l'âge et la performance sans variations extrêmes. On remarque quand même que  le modèle polynomial démontre une légère tendance à la baisse des performances avec l'âge. Cela indique que, pour les joueurs de haut niveau, l'âge n'entraîne pas de changement drastique dans la performance.
+
+- En revanche, pour les joueurs en dessous de 1500 points, il y a une plus grande dispersion des points de données, avec quelques valeurs très basses, en particulier chez les joueurs plus agées. Ici, les trois modèles suggèrent également une relation assez stable entre l'âge et la performance.
+
+## Échantillonage 
+
+Pour affiner notre analyse, nous avons envisagé de créer un échantillon réduit pour observer si, avec moins d'observations, des différences significatives entre les modèles pourraient émerger.
+
+### De la base de données globale
+
+```{r}
+echecs <- echecs %>% 
+  sample_n(500)
+
+modele_lineaire_echec <- MMC(echec$age, echec$Points, modele_lineaire, nbpara = 2)
+modele_polynomial_echec <- MMC(echec$age, echec$Points, modele_polynomial, nbpara = 3)
+modele_moore_echec <- MMC(echec$age, echec$Points, modele_moore, nbpara = 4)
+
+plot(echec$age, echec$Points, main ="Echec\nComparaison des modèles")
+lines(sort(echec$age), modele_lineaire(sort(echec$age), modele_lineaire_echec$parametre), col = "red", lty = 1, lwd = 2)
+lines(sort(echec$age), modele_polynomial(sort(echec$age), modele_polynomial_echec$parametre), col = "blue", lty = 2, lwd = 2)
+lines(sort(echec$age), modele_moore(sort(echec$age), modele_moore_echec$parametre), col = "green", lty = 3, lwd = 2)
+par(mar=c(4.1, 0, 4.1, 4.1))
+legend(x="topright", inset=c(-0.1,0), # déplacez légèrement la légende vers la gauche et vers le bas
+       legend = c("Linéaire", "Polynomial", "Moore"), 
+       col = c("red", "blue", "green"), lty = 1:3, lwd = 2, cex = 0.75, bty = "n", xpd=NA)
+par(mar=c(5.1, 4.1, 4.1, 2.1))
+```
+
+Sur l'échantillon réduit de la base de données, il apparaît clairement qu'aucun modèle ne se distingue particulièrement. Les deux groupes identifiés restent trop séparés pour qu'un modèle unique puisse décrire précisément les deux tendances. 
+
+### Des deux groupes séparés
+
+Nous allons maintenant procéder à l'échantillonnage au sein des deux groupes identifiés dans la base de données. Cette étape nous permettra d'examiner de plus près les données et de déterminer si des tendances plus claires ressortent lorsque nous nous concentrons sur des sous-ensembles spécifiques.
+
+```{r}
+groupe_sup_1500 <- groupe_sup_1500 %>% 
+  sample_n(500)
+
+groupe_inf_1500 <- groupe_inf_1500 %>% 
+  sample_n(500)
+
+modele_lineaire_echec_sup <- MMC(groupe_sup_1500$age, groupe_sup_1500$Points, modele_lineaire, nbpara = 2)
+modele_polynomial_echec_sup <- MMC(groupe_sup_1500$age, groupe_sup_1500$Points, modele_polynomial, nbpara = 3)
+modele_moore_echec_sup <- MMC(groupe_sup_1500$age, groupe_sup_1500$Points, modele_moore, nbpara = 4)
+
+modele_lineaire_echec_inf <- MMC(groupe_inf_1500$age, groupe_inf_1500$Points, modele_lineaire, nbpara = 2)
+modele_polynomial_echec_inf <- MMC(groupe_inf_1500$age, groupe_inf_1500$Points, modele_polynomial, nbpara = 3)
+modele_moore_echec_inf <- MMC(groupe_inf_1500$age, groupe_inf_1500$Points, modele_moore, nbpara = 4)
+
+par(mfrow=c(1,2))
+plot(groupe_sup_1500$age, groupe_sup_1500$Points, main ="Echec\nComparaison des modèles")
+lines(sort(groupe_sup_1500$age), modele_lineaire(sort(groupe_sup_1500$age), modele_lineaire_echec_sup$parametre), col = "red", lty = 1, lwd = 2)
+lines(sort(groupe_sup_1500$age), modele_polynomial(sort(groupe_sup_1500$age), modele_polynomial_echec_sup$parametre), col = "blue", lty = 2, lwd = 2)
+lines(sort(groupe_sup_1500$age), modele_moore(sort(groupe_sup_1500$age), modele_moore_echec_sup$parametre), col = "green", lty = 3, lwd = 2)
+
+plot(groupe_inf_1500$age, groupe_inf_1500$Points, main ="Echec\nComparaison des modèles")
+lines(sort(groupe_inf_1500$age), modele_lineaire(sort(groupe_inf_1500$age), modele_lineaire_echec_inf$parametre), col = "red", lty = 1, lwd = 2)
+lines(sort(groupe_inf_1500$age), modele_polynomial(sort(groupe_inf_1500$age), modele_polynomial_echec_inf$parametre), col = "blue", lty = 2, lwd = 2)
+lines(sort(groupe_inf_1500$age), modele_moore(sort(groupe_inf_1500$age), modele_moore_echec_inf$parametre), col = "green", lty = 3, lwd = 2)
+par(mar=c(4.1, 0, 4.1, 4.1))
+legend(x="topright", inset=c(-0.1,0), # déplacez légèrement la légende vers la gauche et vers le bas
+       legend = c("Linéaire", "Polynomial", "Moore"), 
+       col = c("red", "blue", "green"), lty = 1:3, lwd = 2, cex = 0.75, bty = "n", xpd=NA)
+par(mar=c(5.1, 4.1, 4.1, 2.1))
+```
+
+Les deux graphiques, illustrant les groupes au-dessus et en dessous de 1500 points, montrent que les modèles linéaire, polynomial et de Moore ne révèlent pas de différences notables en termes de tendance par rapport aux observations précédentes. L'échantillonnage n'a pas changé la trajectoire de chaque modèle, qui demeure semblable à celle observée précédemment, ne permettant pas de distinguer nettement un modèle comme meilleur aux autres.
+
+## Calcul des différents critères
+
+```{r}
+qqnorm(echecs$Points,na.rm=T)
+qqline(echecs$Points)
+
+density1=density(echecs$Points,na.rm=T)
+
+
+plot(density1)
+
+qqnorm(groupe_sup_1500$Points,na.rm=T)
+qqline(groupe_sup_1500$Points)
+
+density2=density(groupe_sup_1500$Points,na.rm=T)
+
+
+plot(density2)
+
+qqnorm(groupe_inf_1500$Points,na.rm=T)
+qqline(groupe_inf_1500$Points)
+
+density3=density(groupe_inf_1500$Points,na.rm=T)
+
+
+plot(density3)
+
+```
+
+Les données de echecs ne suivent pas une distribution normal, mais la distribution est normal ou sapproche de la normalité pour les jeux de données supérieur et inférieur à 1500 points. On utilisera donc uniquement les jeux de données inférieur ou supérieur pour le calcul des différents critères.
+
+```{r}
+# Fonction pour calculer et retourner un dataframe de résultats
+compute_results <- function(data, linear_result, polynomial_result, moore_result) {
+  n <- length(data$age)  # Nombre d'observations
+  
+  # Calculs pour le modèle linéaire
+  RSS_linear <- sum(residuals(lm(data$Points ~ data$age))^2)
+  k_linear <- 2  # Nombre de paramètres pour le modèle linéaire
+  R2_linear <- linear_result$R2
+  R2_ajuste_linear <- 1 - ((1 - R2_linear) * (n - 1)) / (n - k_linear - 1)
+  AIC_linear <- n * log(RSS_linear/n) + 2 * k_linear + (2*k_linear*(k_linear + 1)) / (n - k_linear - 1)
+  BIC_linear <- n * log(RSS_linear/n) + k_linear * log(n)
+  
+  # Calculs pour le modèle polynomial
+  RSS_poly <- sum(residuals(lm(data$Points ~ I(data$age)^2))^2)
+  k_poly <- 3  # Nombre de paramètres pour le modèle polynomial
+  R2_poly <- polynomial_result$R2
+  R2_ajuste_poly <- 1 - ((1 - R2_poly) * (n - 1)) / (n - k_poly - 1)
+  AIC_poly <- n * log(RSS_poly/n) + 2 * k_poly + (2*k_poly*(k_poly + 1)) / (n - k_poly - 1)
+  BIC_poly <- n * log(RSS_poly/n) + k_poly * log(n)
+  
+  # Calculs pour le modèle de Moore
+  RSS_moore <- moore_result$objectif
+  k_moore <- 4  # Nombre de paramètres pour le modèle de Moore
+  R2_moore <- moore_result$R2
+  R2_ajuste_moore <- 1 - ((1 - R2_moore) * (n - 1)) / (n - k_moore - 1)
+  AIC_moore <- n * log(RSS_moore/n) + 2 * k_moore + (2*k_moore*(k_moore + 1)) / (n - k_moore - 1)
+  BIC_moore <- n * log(RSS_moore/n) + k_moore * log(n)
+  
+  # Création du dataframe de résultats
+  results <- data.frame(
+    df=deparse(substitute(data)),
+    RSS_Linear = RSS_linear,
+    R2_Linear = R2_ajuste_linear,
+    AIC_Linear = AIC_linear,
+    BIC_Linear = BIC_linear,
+    RSS_Poly = RSS_poly,
+    R2_Poly = R2_ajuste_poly,
+    AIC_Poly = AIC_poly,
+    BIC_Poly = BIC_poly,
+    RSS_Moore = RSS_moore,
+    R2_Moore = R2_ajuste_moore,
+    AIC_Moore = AIC_moore,
+    BIC_Moore = BIC_moore
+  )
+  
+  return(results)
+}
+
+# Calculer les résultats pour le groupe supérieur à 1500 points
+results_sup_1500 <- compute_results(groupe_sup_1500, modele_lineaire_echec_sup, modele_polynomial_echec_sup, modele_moore_echec_sup)
+
+# Calculer les résultats pour le groupe inférieur à 1500 points
+results_inf_1500 <- compute_results(groupe_inf_1500, modele_lineaire_echec_inf, modele_polynomial_echec_inf, modele_moore_echec_inf)
+
+# Combiner les deux ensembles de résultats dans un seul dataframe
+combined_results <- rbind(results_sup_1500, results_inf_1500)
+
+combined_results_long <- pivot_longer(
+  combined_results,
+  cols = -c(df), # Exclure les colonnes Distance et Gender du pivot
+  names_to = c("Metric","Model"),
+  names_sep = "_",# Nom de la nouvelle colonne pour les noms des métriques
+  values_to = "Value" # Nom de la nouvelle colonne pour les valeurs des métriques
+)
+
+# Afficher le dataframe transformé
+print(combined_results_long)
+
+# Créer un sous-ensemble de données pour chaque métrique
+aic_data <- subset(combined_results_long, Metric == "AIC")
+bic_data <- subset(combined_results_long, Metric == "BIC")
+r2_data <- subset(combined_results_long, Metric == "R2")
+rss_data <- subset(combined_results_long, Metric == "RSS")
+
+plot_metric <- function(data, metric_name) {
+  ggplot(data, aes(x = Model, y = Value, color = df)) +
+    geom_line(aes(linetype = df), size = 1) +  # Utiliser des lignes pour connecter les points
+    geom_point(aes(shape = df), size = 3) +  # Corriger: Mettre 'size = 3' à l'intérieur de 'geom_point()'
+    theme_minimal() +
+    #facet_wrap(~ Model, ncol = 1) +  # Chaque modèle dans sa propre colonne
+    labs(title = paste("Comparaison des modèles pour la métrique :", metric_name),
+         x = "Modèle", y = "Valeur de la métrique") +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+    scale_color_manual(values = c("groupe_sup_1500" = "green", "groupe_inf_1500" = "red")) +
+    guides(color = guide_legend(title = "Groupe"),  # Ajuster le titre de la légende
+           linetype = guide_legend(title = "Groupe"),  # Ajouter une légende pour le style de ligne
+           shape = guide_legend(title = "Groupe"))  # Ajouter une légende pour la forme des points
+}
+
+par(mfrow=c(2,2))
+plot_metric(aic_data, "AIC")
+plot_metric(bic_data, "BIC")
+plot_metric(r2_data, "R2")
+plot_metric(rss_data, "RSS")
+
+```
+
+L'analyse des quatre graphiques montre que les modèles linéaire, polynomial et de Moore ont des performances relativement similaires sur les deux groupes, ceux avec plus et ceux avec moins de 1500 points. Le modèle polynomial semble avoir un léger avantage, bien que cette différence soit minime et ne représente pas un changement significatif par rapport aux autres modèles.
+
+## Âge ou les points sont maximals
+
+```{r}
+modeles <- c("modele_lineaire", "modele_polynomial", "modele_moore")
+results4 <- data.frame(jeux=character(),
+                       modele = character(),
+                       Points_maximum = numeric(),
+                       age_maximum = numeric(),
+                       stringsAsFactors = FALSE)
+
+find_age_peak <- function(modele_function, params, ages) {
+  opt_fun <- function(t) -modele_function(t, params)
+  opt_result <- optimize(f = opt_fun, interval = c(min(ages), max(ages)))
+  age_peak <- opt_result$minimum
+  performance_max <- -opt_result$objective
+  return(list(age_peak = age_peak, performance_max = performance_max))
+}
+
+for(modele_name in modeles) {
+    modele_function <- get(modele_name)
+    nbpara <- ifelse(modele_name == "modele_lineaire", 2, ifelse(modele_name == "modele_polynomial", 3, 4))
+    
+    # Appliquer MMC et trouver le pic de vitesse pour le groupe sup_1500
+    resultats_sup_1500_t <- MMC(groupe_sup_1500$age, groupe_sup_1500$Points, modele_function, nbpara)
+    age_peak_result_sup_1500 <- find_age_peak(modele_function, resultats_sup_1500_t$parametre, groupe_sup_1500$age)
+    
+    # Ajouter les résultats pour le groupe supérieur à 1500 points
+    results4 <- rbind(results4, data.frame(
+      jeux= "groupe_sup_1500",
+      modele = modele_name,
+      Points_maximum = age_peak_result_sup_1500$performance_max,
+      age_maximum = age_peak_result_sup_1500$age_peak
+    ))
+    
+    # Appliquer MMC et trouver le pic de vitesse pour le groupe inf_1500
+    resultats_inf_1500_t <- MMC(groupe_inf_1500$age, groupe_inf_1500$Points, modele_function, nbpara)
+    age_peak_result_inf_1500 <- find_age_peak(modele_function, resultats_inf_1500_t$parametre, groupe_inf_1500$age)
+    
+    # Ajouter les résultats pour le groupe inférieur à 1500 points
+    results4 <- rbind(results4, data.frame(
+      jeux= "groupe_inf_1500",
+      modele = modele_name,
+      Points_maximum = age_peak_result_inf_1500$performance_max,
+      age_maximum = age_peak_result_inf_1500$age_peak
+    ))
+}
+
+results4$age_maximum <- round(results4$age_maximum)
+head(results4, 6)
+```
+
+On calcule ici l'âge qui correspond aux points maximum obtenu dans la fonction MMC. On remarque que l'age n'est jamais le même, sauf pour le groupe inferieur a 1500 on remarque que l'âge 14 revient 2 fois. On peut donc conclure que des joueurs qui gagnent peu de points ont tendance à atteindre leur performance maximale à un jeune âge de 14 ans. Pour les joueurs qui gagne beaucoup de points on ne peux pas vraiment définir d'âge.
+
+## Conclusion
+
+En résumé, aucun modèle ne se démarque nettement des autres selon ces critères.La relation âge-points ne révèlent pas de tendance ou de forme particulière qui permettrait de privilégier un modèle spécifique. On a simplement pu découvrir que less joueurs qui gagnent peu de points ont tendance à atteindre leur performance maximale à 14 ans.
+
+# Question bonus 1 
+
+L'objectif de la question bonus est de faire une comparaison entre les modèles précédemment analysés (linéaire, polnomiale et moore) et une nouvelle équation proposée. Chaque modèle représente une tentative de modéliser la relation entre l'âge et la performance à travers des paramètres ajustables. Dans ce contexte, les constantes $\alpha_0$, $\alpha_r$, $\beta_0$, $\beta_r$, $t_d$ sont les paramètres ajustables pour représenter la performance P(t) en fonction de l'âge $t$.
+
+Notre but est de déterminer quel modèle offre le meilleur ajustement et d'expliquer pourquoi.
+
+Nous procéderons en plusieurs étapes. D'abord, nous examinerons la composition de l'équation. Ensuite, nous testerons le nouveau modèle sur nos données pour observer son comportement graphique. Enfin, nous calculerons différents critères pour comparer les modèles.
+
+## Visuellement 
+
+Voici comment est présenté l'quation:
+
+\begin{center}
+
+$P(t) = \beta_0 N_{\infty} \cdot e^{\left( -\frac{\alpha_0}{\alpha_r} e^{-\alpha_r t} \right)} \cdot \left(1 - e^{-\beta_r(t - t_d)} \right)$
+
+\end{center}
+
+L'utilisation d'exponentielles signifie que le modèle peut représenter des variations rapides, qu'elles soient en hausse ou en baisse. Toutefois, comme nous l'avons vu avec l'équation de Moore et sa double exponentielle, bien qu'elle capture efficacement les évolutions rapides au départ, sa tendance est à s'aplatir par la suite. Il est donc probable que ce nouveau modèle présente un comportement similaire.
+
+Nous envisageons d'implémenter le modèle en R, qui requiert l'ajustement de cinq paramètres. Cependant, concernant $N_{\infty}$ , sa signification précise n'étant pas définie puisqu'il ne figure pas parmi les paramètres ajustables, nous l'avons interprété comme étant équivalent a la moyenne de la vitesse observée.
+
+```{r}
+nouvelle_fonction <- function(t, params) {
+  beta0 <- params[3]
+  alpha0 <- params[1]
+  alpha_r <- params[2]
+  beta_r <- params[4]
+  t_d <- params[5]
+  N <- 5.955
+  P_t <- beta0 * N * exp((-alpha0 / alpha_r) * exp(-alpha_r * t)) * (1 - exp(beta_r * (t - t_d)))
+}
+```
+
+## Graphiquement 
+
+On va maintenant appliqué notre nouveau modèle grace a la fonction MMC. On va ensuite affiché les différents modèles sur nos différents jeux de données pour pouvoir les comparer.
+
+```{r}
+meilleures_performances_femmes<-meilleures_performances_femmes[1:3]
+meilleures_performances_hommes<-meilleures_performances_hommes[1:3]
+
+epreuves <- c("800", "1500", "3000", "5000", "10000", "21097.5", "42195")
+
+# Boucle sur chaque épreuve
+for(distance in epreuves) {
+  # Convertir distance en numérique si nécessaire
+  distance_num <- as.numeric(distance)
+  
+  #Filtrer les données pour la distance courante
+  femmes_data <- subset(meilleures_performances_femmes, distance == distance_num)
+  hommes_data <- subset(meilleures_performances_hommes, distance == distance_num)
+  
+  
+  # Ajustement des modèles aux données
+  resultats_lineaire_femmes <- MMC(femmes_data$age_entier, femmes_data$vitesse, modele_lineaire, nbpara = 2)
+  resultats_polynomial_femmes <- MMC(femmes_data$age_entier, femmes_data$vitesse, modele_polynomial, nbpara = 3)
+  resultats_moore_femmes <- MMC(femmes_data$age_entier, femmes_data$vitesse, modele_moore, nbpara = 4)
+  resultats_nv_femmes <- MMC(femmes_data$age_entier, femmes_data$vitesse, nouvelle_fonction, nbpara = 5)
+  
+  resultats_lineaire_hommes <- MMC(hommes_data$age_entier, hommes_data$vitesse, modele_lineaire, nbpara = 2)
+  resultats_polynomial_hommes <- MMC(hommes_data$age_entier, hommes_data$vitesse, modele_polynomial, nbpara = 3)
+  resultats_moore_hommes <- MMC(hommes_data$age_entier, hommes_data$vitesse, modele_moore, nbpara = 4)
+  resultats_nv_hommes <- MMC(hommes_data$age_entier, hommes_data$vitesse, nouvelle_fonction, nbpara = 5)
+  
+  par(mfrow=c(1,2))
+  # Tracer les ajustements sur un même graphique pour chaque distance
+  par(mar=c(5.1, 4.1, 4.1, 2.1))
+  plot(femmes_data$age_entier, femmes_data$vitesse, xlab = "Age", ylab = "Vitesse en m/s", main = "Femmes")
+  lines(sort(femmes_data$age_entier), modele_lineaire(sort(femmes_data$age_entier), resultats_lineaire_femmes$parametre), col = "red", lty = 1, lwd = 2)
+  lines(sort(femmes_data$age_entier), modele_polynomial(sort(femmes_data$age_entier), resultats_polynomial_femmes$parametre), col = "blue", lty = 2, lwd = 2)
+  lines(sort(femmes_data$age_entier), modele_moore(sort(femmes_data$age_entier), resultats_moore_femmes$parametre), col = "green", lty = 3, lwd = 2)
+  lines(sort(femmes_data$age_entier), nouvelle_fonction(sort(femmes_data$age_entier), resultats_nv_femmes$parametre), col = "purple", lty = 3, lwd = 2)
+  
+  # Tracer les ajustements sur un même graphique pour chaque distance
+  par(mar=c(5.1, 2.1, 4.1, 2.1))
+  plot(hommes_data$age_entier, hommes_data$vitesse, xlab = "Age", ylab = "Vitesse en m/s", main = "Hommes")
+  lines(sort(hommes_data$age_entier), modele_lineaire(sort(hommes_data$age_entier), resultats_lineaire_hommes$parametre), col = "red", lty = 1, lwd = 2)
+  lines(sort(hommes_data$age_entier), modele_polynomial(sort(hommes_data$age_entier), resultats_polynomial_hommes$parametre), col = "blue", lty = 2, lwd = 2)
+  lines(sort(hommes_data$age_entier), modele_moore(sort(hommes_data$age_entier), resultats_moore_hommes$parametre), col = "green", lty = 3, lwd = 2)
+  lines(sort(hommes_data$age_entier), nouvelle_fonction(sort(hommes_data$age_entier), resultats_nv_hommes$parametre), col = "purple", lty = 3, lwd = 2)
+  par(mar=c(4.1, 0, 4.1, 4.1)) # Ajuste les marges
+  legend(x="topright", inset=c(-0.1,0), # déplacez légèrement la légende vers la gauche et vers le bas
+         legend = c("Linéaire", "Polynomial", "Moore", "nouvelle équation"), 
+         col = c("red", "blue", "green", "purple"), lty = 1:3, lwd = 2, cex = 0.75, bty = "n", xpd=NA)
+  mtext(side = 3, line = -3.7, text = sprintf("Comparaison des modèles pour l'épreuve de %s m", distance), outer = TRUE, cex = 1)
+  par(mfrow=c(1,1), mar=c(5.1, 4.1, 4.1, 2.1))
+}
+```
+
+Les graphique change tous le temps donc je ferai le texte une fois qu'on aura knit le document comme sa je n'aurai pas a le refaire.
+Mais en gros le nouveau modèles ressemble fortement au modèle de moore.
+
+## Critères
+
+Maintenant que nous avons comparé les modèles de façon graphique, nous allons examiner des critères numériques pour choisir le meilleur. Ces critères vont nous permettre de justifier notre choix en s'appuyant sur des données précises et des mesures de performance pour chaque modèle.
+Nous avons choisi les critères AIC, BIC, RSS et R2 ajusté pour comparer les modèles statistiquement et déterminer le plus performant.
+
+```{r}
+# Fonction pour calculer et retourner un dataframe de résultats
+compute_results2 <- function(data, linear_result, polynomial_result, moore_result, nv_result, distance, gender) {
+  n <- nrow(data)  # Nombre d'observations
+  
+  # Calculs pour le modèle linéaire
+  RSS_linear <- sum(residuals(lm(data$vitesse ~ data$age_entier))^2)
+  k_linear <- 2  # Nombre de paramètres pour le modèle linéaire
+  R2_linear <- linear_result$R2
+  R2_ajuste_linear <- 1 - ((1 - R2_linear) * (n - 1)) / (n - k_linear - 1)
+  AIC_linear <- n * log(RSS_linear/n) + 2 * k_linear + (2*k_linear*(k_linear + 1)) / (n - k_linear - 1)
+  BIC_linear <- n * log(RSS_linear/n) + k_linear * log(n)
+  
+  # Calculs pour le modèle polynomial
+  RSS_poly <- sum(residuals(lm(data$vitesse ~ I(data$age_entier)^2))^2)
+  k_poly <- 3  # Nombre de paramètres pour le modèle polynomial
+  R2_poly <- polynomial_result$R2
+  R2_ajuste_poly <- 1 - ((1 - R2_poly) * (n - 1)) / (n - k_poly - 1)
+  AIC_poly <- n * log(RSS_poly/n) + 2 * k_poly + (2*k_poly*(k_poly + 1)) / (n - k_poly - 1)
+  BIC_poly <- n * log(RSS_poly/n) + k_poly * log(n)
+  
+  # Calculs pour le modèle de Moore
+  RSS_moore <- moore_result$objectif
+  k_moore <- 4  # Nombre de paramètres pour le modèle de Moore
+  R2_moore <- moore_result$R2
+  R2_ajuste_moore <- 1 - ((1 - R2_moore) * (n - 1)) / (n - k_moore - 1)
+  AIC_moore <- n * log(RSS_moore/n) + 2 * k_moore + (2*k_moore*(k_moore + 1)) / (n - k_moore - 1)
+  BIC_moore <- n * log(RSS_moore/n) + k_moore * log(n)
+  
+  # Calculs pour le nouveau modèle
+  RSS_nv <- nv_result$objectif
+  k_nv <- 5  # Nombre de paramètres pour le modèle de nv
+  R2_nv <- nv_result$R2
+  R2_ajuste_nv <- 1 - ((1 - R2_nv) * (n - 1)) / (n - k_nv - 1)
+  AIC_nv <- n * log(RSS_nv/n) + 2 * k_nv + (2*k_nv*(k_nv + 1)) / (n - k_nv - 1)
+  BIC_nv <- n * log(RSS_nv/n) + k_nv * log(n)
+  
+  # Création du dataframe de résultats
+  results <- data.frame(
+    Distance = distance,
+    Gender = gender,
+    RSS_Linear = RSS_linear,
+    R2_Linear = R2_ajuste_linear,
+    AIC_Linear = AIC_linear,
+    BIC_Linear = BIC_linear,
+    RSS_Poly = RSS_poly,
+    R2_Poly = R2_ajuste_poly,
+    AIC_Poly = AIC_poly,
+    BIC_Poly = BIC_poly,
+    RSS_Moore = RSS_moore,
+    R2_Moore = R2_ajuste_moore,
+    AIC_Moore = AIC_moore,
+    BIC_Moore = BIC_moore,
+    RSS_nv = RSS_nv,
+    R2_nv = R2_ajuste_nv,
+    AIC_nv = AIC_nv,
+    BIC_nv = BIC_nv
+  )
+  
+  return(results)
+}
+
+# Liste des distances
+distances <- c("800", "1500", "3000", "5000", "10000", "21097.5", "42195")
+
+
+resultats_nv_800_femmes <- MMC(femmes_data_800$age_entier, femmes_data_800$vitesse, nouvelle_fonction, nbpara = 5)
+resultats_nv_1500_femmes <- MMC(femmes_data_1500$age_entier, femmes_data_1500$vitesse, nouvelle_fonction, nbpara = 5)
+resultats_nv_3000_femmes <- MMC(femmes_data_3000$age_entier, femmes_data_3000$vitesse, nouvelle_fonction, nbpara = 5)
+resultats_nv_5000_femmes <- MMC(femmes_data_5000$age_entier, femmes_data_5000$vitesse, nouvelle_fonction, nbpara = 5)
+resultats_nv_10000_femmes <- MMC(femmes_data_10000$age_entier, femmes_data_10000$vitesse, nouvelle_fonction, nbpara = 5)
+resultats_nv_21097.5_femmes <- MMC(femmes_data_21097.5$age_entier, femmes_data_21097.5$vitesse, nouvelle_fonction, nbpara = 5)
+resultats_nv_42195_femmes <- MMC(femmes_data_42195$age_entier, femmes_data_42195$vitesse, nouvelle_fonction, nbpara = 5)
+
+
+resultats_nv_800_hommes <- MMC(hommes_data_800$age_entier, hommes_data_800$vitesse, nouvelle_fonction, nbpara = 5)
+resultats_nv_1500_hommes <- MMC(hommes_data_1500$age_entier, hommes_data_1500$vitesse, nouvelle_fonction, nbpara = 5)
+resultats_nv_3000_hommes <- MMC(hommes_data_3000$age_entier, hommes_data_3000$vitesse, nouvelle_fonction, nbpara = 5)
+resultats_nv_5000_hommes <- MMC(hommes_data_5000$age_entier, hommes_data_5000$vitesse, nouvelle_fonction, nbpara = 5)
+resultats_nv_10000_hommes <- MMC(hommes_data_10000$age_entier, hommes_data_10000$vitesse, nouvelle_fonction, nbpara = 5)
+resultats_nv_21097.5_hommes <- MMC(hommes_data_21097.5$age_entier, hommes_data_21097.5$vitesse, nouvelle_fonction, nbpara = 5)
+resultats_nv_42195_hommes <- MMC(hommes_data_42195$age_entier, hommes_data_42195$vitesse, nouvelle_fonction, nbpara = 5)
+
+resultats_nv_42195_hommes
+# Initialisation du dataframe pour rassembler les résultats
+all_results <- data.frame()
+
+# Calculer les résultats pour les hommes et les femmes
+for (gender in c("femmes", "hommes")) {
+  for (distance in distances) {
+    # Ici, on suppose que les noms des variables et les résultats sont correctement assignés
+    # et disponibles dans l'environnement R.
+    gender_data <- get(paste0(gender, "_data_", distance))
+    linear_result <- get(paste0("resultats_lineaire_", distance, "_", gender))
+    polynomial_result <- get(paste0("resultats_polynomial_", distance, "_", gender))
+    moore_result <- get(paste0("resultats_moore_", distance, "_", gender))
+    nv_result <- get(paste0("resultats_nv_", distance, "_", gender))
+    # Ajout des résultats dans le dataframe global
+    all_results <- rbind(all_results, compute_results2(gender_data, linear_result, polynomial_result, moore_result, nv_result, distance, gender))
+  }
+}
+all_results
+
+# Transformation des données pour la visualisation avec ggplot2
+# Transformation des données pour la visualisation avec ggplot2
+results_long <- all_results %>%
+  pivot_longer(
+    cols = -c(Distance, Gender),
+    names_to = c("Metric", "Model"),
+    names_sep = "_",
+    values_to = "Value"
+  )
+
+
+library(forcats) # pour la fonction fct_relevel
+
+# Assurez-vous que Distance est un facteur et réordonnez les niveaux
+results_long$Distance <- factor(results_long$Distance, 
+                                levels = c("800", "1500", "3000", "5000", "10000", "21097.5", "42195"))
+
+# Créer un sous-ensemble de données pour chaque métrique
+aic_data <- subset(results_long, Metric == "AIC")
+bic_data <- subset(results_long, Metric == "BIC")
+r2_data <- subset(results_long, Metric == "R2")
+rss_data <- subset(results_long, Metric == "RSS")
+
+# Définir une fonction pour générer le graphique pour chaque métrique avec des limites y personnalisées
+plot_metric <- function(data, metric_name, y_limits) {
+  ggplot(data, aes(x = Distance, y = Value, color = Gender)) +
+    geom_line(aes(linetype = Gender), size = 1) +
+    geom_point(aes(shape = Gender), size = 3) +
+    facet_wrap(~ Model, ncol = 1, scales = "free_y") + # Permettre à chaque modèle d'avoir sa propre échelle y
+    theme_minimal() +
+    labs(title = paste("Comparaison des modèles pour la métrique", metric_name),
+         x = "Distance", y = "Valeur") +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1),
+          legend.position = "bottom") +
+    scale_color_manual(values = c("femmes" = "pink", "hommes" = "skyblue")) +
+    guides(linetype = guide_legend(override.aes = list(size = 2)),
+           shape = guide_legend(override.aes = list(size = 5))) +
+    scale_x_discrete(limits = c("800", "1500", "3000", "5000", "10000", "21097.5", "42195")) +
+    scale_y_continuous(limits = y_limits) # Définit les limites de l'axe y
+}
+
+# Vous devrez définir les limites y pour chaque métrique
+aic_limits <- c(-180, 0) # Remplacez par les limites appropriées pour AIC
+bic_limits <- c(-160, 0) # Remplacez par les limites appropriées pour BIC
+r2_limits <- c(0, 1)    # R2 est généralement entre 0 et 1
+rss_limits <- c(0, 10)  # Remplacez par les limites appropriées pour RSS
+
+# Afficher les graphiques pour chaque métrique avec des limites y personnalisées
+plot_metric(aic_data, "AIC", aic_limits)
+plot_metric(bic_data, "BIC", bic_limits)
+plot_metric(r2_data, "R2", r2_limits)
+plot_metric(rss_data, "RSS", rss_limits)
+```
+
+
+Nous constatons que les modèles de Moore et le nouveau modèle présentent parfois des valeurs aberrantes pour certains critères. Par exemple, le R2 ajusté du nouveau modèle est supérieur à 1 ou même négatif dans certaines disciplines, ce qui est incohérent. Cette anomalie nous empêche de conclure que ce modèle est supérieur aux autres.
+
+## Conclusion
+
+Les anomalies observées jusqu'à présent pourraient très bien résulter d'erreurs dans notre formulation du modèle, donc nous préférons opter pour le modèle polynomial. Ce dernier présente une courbe en forme de U inversé qui suit fidèlement les données et il se distingue par sa simplicité de mise en œuvre ainsi que par ses excellentes valeurs selon les critères évalués précédemment.
+
+# Question bonus 2 
+
+Nous abordons maintenant la question bonus 2, où l'exercice consiste à exploiter ChatGPT pour répondre à une question de notre choix tirée de ce TD. Par la suite, nous fournirons une analyse concise soulignant les atouts et les limites de la réponse générée par ChatGPT comparativement à celle que nous avions formulée.
+
+## Choix de la question choisi
+
+Nous allons nous pencher sur la question 4 pour comparer les réponses fournies par CHATGPT et celles que nous pourrions donner. La question 4 explore comment l'âge affecte la performance sportive, en observant un pic de performance qui prend la forme d'un "U" inversé. Le but est de savoir si l'âge où les athlètes sont au sommet de leur forme est le même pour tous les sports et toutes les distances. Pour cela, on utilisera la fonction MMC afin de déterminer à quel âge les athlètes atteignent ce pic et si ce dernier varie selon les épreuves. L'objectif final est de déduire l'âge de performance optimale pour chaque épreuve analysée.
+
+## Réponse CHATGPT
+
+Voici la réponse de CHATGPT non modifié pour cette question :
+
+```{r}
+# Initialisation du dataframe pour stocker les résultats finaux
+results <- data.frame(sexe = character(),
+                      epreuve = character(),
+                      modele = character(),
+                      vitessemaximum = numeric(),
+                      age_maximum = numeric(),
+                      stringsAsFactors = FALSE)
+
+# Supposons que vos modèles sont des fonctions définies quelque part dans votre code.
+# Exemple:
+# modele_lineaire <- function(age, params) { ... }
+# modele_polynomial <- function(age, params) { ... }
+# modele_moore <- function(age, params) { ... }
+
+# Boucle sur les épreuves
+for(epreuve in epreuves) {
+  distance_num <- as.numeric(epreuve)
+  
+  # Données pour les femmes et les hommes
+  femmes_data <- subset(meilleures_performances_femmes, distance == distance_num)
+  hommes_data <- subset(meilleures_performances_hommes, distance == distance_num)
+  
+  # Boucle sur les modèles
+  for(modele_name in modeles) {
+    # Obtenir la fonction de modèle
+    modele_function <- get(modele_name)
+    
+    # Nombre de paramètres pour le modèle
+    nbpara <- ifelse(modele_name == "modele_lineaire", 2, ifelse(modele_name == "modele_polynomial", 3, 4))
+    
+    # Appliquer la fonction MMC pour obtenir le pic de performance et les paramètres pour les femmes
+    resultats_femmes <- MMC(femmes_data$age_entier, femmes_data$vitesse, modele_function, nbpara)
+    
+    # Trouver l'âge de performance maximale avec optimize pour les femmes
+    age_optim_femmes <- optimize(f = function(age) -modele_function(age, resultats_femmes$parametre), 
+                                 interval = range(femmes_data$age_entier), 
+                                 maximum = TRUE)
+    
+    # Stocker les résultats pour les femmes
+    results <- rbind(results, data.frame(sexe = "femmes",
+                                         epreuve = epreuve,
+                                         modele = modele_name,
+                                         vitessemaximum = resultats_femmes$peak,
+                                         age_maximum = age_optim_femmes$maximum))
+    
+    # Appliquer la fonction MMC pour obtenir le pic de performance et les paramètres pour les hommes
+    resultats_hommes <- MMC(hommes_data$age_entier, hommes_data$vitesse, modele_function, nbpara)
+    
+    # Trouver l'âge de performance maximale avec optimize pour les hommes
+    age_optim_hommes <- optimize(f = function(age) -modele_function(age, resultats_hommes$parametre), 
+                                 interval = range(hommes_data$age_entier), 
+                                 maximum = TRUE)
+    
+    # Stocker les résultats pour les hommes
+    results <- rbind(results, data.frame(sexe = "hommes",
+                                         epreuve = epreuve,
+                                         modele = modele_name,
+                                         vitessemaximum = resultats_hommes$peak,
+                                         age_maximum = age_optim_hommes$maximum))
+  }
+}
+
+# Afficher les résultats
+head(results, 10)
+```
+
+## Conclusion par rapport a nos propres résultats
+
+Pour faire une comparaison avec nos resultats, nos allons les affichés pour facilité la comparaison.
+
+```{r}
+head(results, 10)
+```
+
+Après comparaison, il est clair que les résultats obtenus avec ChatGPT ne correspondent pas aux notres.
+
+Le mieux est de retourner voir les graphiques pour comprendre ce qu'a fait CHATGPT. Pour plus de simplicité, on va simplement afficher le graphique qui correspond à l'épreuve des 800 mètres. (afficher le graphique)
+
+En fait, au lieu de renvoyer l'âge où la vitesse est maximale, il a renvoyé l'âge où la vitesse est minimale. Il y a donc eu une inversion dans le code fait par ChatGPT. Nous avons expliqué l'erreur qu'il avait faite pour qu'il essaie de la corriger, mais il n'a pas réussi. Cela nous permet de réaliser que, certes, ChatGPT est très utile, mais parfois il se trompe et n'arrive pas à corriger ses erreurs. Nos résultats, à nous, permettaient bien de trouver l'âge où la vitesse est maximale.
+
+
+
+
+
+
+
+
+
